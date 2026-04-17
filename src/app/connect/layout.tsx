@@ -11,10 +11,10 @@ export default function ConnectLayout({ children }: { children: React.ReactNode 
         </Link>
         <div className="topnav-links">
           <Link href="/accounts" className="btn btn-ghost btn-sm">
-            Mes comptes
+            My accounts
           </Link>
           <Link href="/connect" className="btn btn-ghost btn-sm">
-            Connecter à Claude
+            Connect to Claude
           </Link>
           <UserButton />
         </div>

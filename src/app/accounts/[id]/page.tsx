@@ -26,10 +26,10 @@ export default async function EditAccountPage({
     <div>
       <div style={{ marginBottom: 16 }}>
         <Link href="/accounts" className="muted">
-          ← Retour
+          ← Back
         </Link>
       </div>
-      <h2 style={{ marginBottom: 24 }}>Compte &quot;{acc.label}&quot;</h2>
+      <h2 style={{ marginBottom: 24 }}>Account &quot;{acc.label}&quot;</h2>
       <AccountForm
         mode="edit"
         accountId={acc.id}

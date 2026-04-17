@@ -25,25 +25,25 @@ export default async function AccountsPage() {
     <div className="stack stack-lg">
       <div className="header">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Mes comptes email</h2>
+          <h2 style={{ marginBottom: 4 }}>My email accounts</h2>
           <p className="muted" style={{ fontSize: 14 }}>
-            Les comptes configurés ici seront exposés à Claude via MCP.
+            Accounts configured here are exposed to Claude through MCP.
           </p>
         </div>
         <Link href="/accounts/new" className="btn btn-primary">
-          + Ajouter un compte
+          + Add account
         </Link>
       </div>
 
       {accounts.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "48px 24px" }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>
-          <h3 style={{ marginBottom: 6 }}>Aucun compte configuré</h3>
+          <h3 style={{ marginBottom: 6 }}>No account configured yet</h3>
           <p className="muted" style={{ marginBottom: 20 }}>
-            Ajoute ton premier compte IMAP/SMTP pour commencer à l&apos;utiliser depuis Claude.
+            Add your first IMAP/SMTP account to start using it from Claude.
           </p>
           <Link href="/accounts/new" className="btn btn-primary">
-            + Ajouter un compte
+            + Add account
           </Link>
         </div>
       ) : (
@@ -53,14 +53,14 @@ export default async function AccountsPage() {
             <div className="row row-between">
               <div>
                 <strong style={{ display: "block", marginBottom: 4 }}>
-                  Connecter ce serveur à Claude
+                  Connect this server to Claude
                 </strong>
                 <span className="muted" style={{ fontSize: 14 }}>
-                  Guide pas à pas pour Claude.ai, Claude Desktop et Claude Code.
+                  Step-by-step guide for Claude.ai, Claude Desktop and Claude Code.
                 </span>
               </div>
               <Link href="/connect" className="btn btn-primary">
-                Voir le guide →
+                Open guide →
               </Link>
             </div>
           </div>

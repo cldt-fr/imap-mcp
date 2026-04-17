@@ -16,39 +16,39 @@ export default function HomePage() {
         <div className="topnav-links">
           <SignedIn>
             <Link href="/accounts" className="btn btn-ghost btn-sm">
-              Mes comptes
+              My accounts
             </Link>
             <Link href="/connect" className="btn btn-ghost btn-sm">
-              Connecter à Claude
+              Connect to Claude
             </Link>
             <UserButton />
           </SignedIn>
           <SignedOut>
             <SignInButton mode="modal">
-              <button className="btn btn-primary btn-sm">Se connecter</button>
+              <button className="btn btn-primary btn-sm">Sign in</button>
             </SignInButton>
           </SignedOut>
         </div>
       </nav>
 
       <section className="hero">
-        <h1>Tes emails, branchés sur Claude.</h1>
+        <h1>Your email, plugged into Claude.</h1>
         <p>
-          Serveur MCP auto-hébergé qui expose tes comptes IMAP/SMTP à Claude et aux autres
-          clients MCP — en toute sécurité, sans partager tes mots de passe.
+          A self-hosted MCP server that exposes your IMAP/SMTP accounts to Claude and
+          any other MCP-compatible client — securely, without ever sharing your passwords.
         </p>
         <div className="hero-actions">
           <SignedIn>
             <Link href="/accounts" className="btn btn-primary">
-              Gérer mes comptes →
+              Manage my accounts →
             </Link>
             <Link href="/connect" className="btn">
-              Connecter à Claude
+              Connect to Claude
             </Link>
           </SignedIn>
           <SignedOut>
             <SignInButton mode="modal">
-              <button className="btn btn-primary">Commencer</button>
+              <button className="btn btn-primary">Get started</button>
             </SignInButton>
             <a
               href="https://modelcontextprotocol.io"
@@ -56,7 +56,7 @@ export default function HomePage() {
               rel="noreferrer"
               className="btn"
             >
-              Qu&apos;est-ce que MCP ?
+              What is MCP?
             </a>
           </SignedOut>
         </div>
@@ -65,42 +65,41 @@ export default function HomePage() {
       <div className="stack stack-lg" style={{ marginTop: 16 }}>
         <div className="card">
           <div className="row row-between" style={{ marginBottom: 8 }}>
-            <strong>URL du serveur MCP</strong>
+            <strong>MCP server URL</strong>
             <span className="badge badge-soft">OAuth 2.1 · PKCE</span>
           </div>
           <CopyBlock value={mcpUrl} />
           <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-            Colle cette URL dans Claude.ai (Paramètres → Connecteurs), Claude Desktop ou
-            Claude Code. Le client s&apos;enregistrera automatiquement via DCR.
+            Paste this URL into Claude.ai (Settings → Connectors), Claude Desktop or
+            Claude Code. The client auto-registers through DCR.
           </p>
         </div>
 
         <div className="grid-2">
           <div className="card card-hover">
-            <h3 style={{ marginBottom: 6 }}>🔐 Authentification forte</h3>
+            <h3 style={{ marginBottom: 6 }}>🔐 Strong authentication</h3>
             <p className="muted" style={{ fontSize: 14 }}>
-              Humains via Clerk (MFA, SSO). Clients MCP via OAuth 2.1 + PKCE + DCR. Mots de
-              passe IMAP chiffrés AES-256-GCM au repos.
+              Humans via Clerk (MFA, SSO). MCP clients via OAuth 2.1 + PKCE + DCR.
+              IMAP passwords encrypted at rest with AES-256-GCM.
             </p>
           </div>
           <div className="card card-hover">
-            <h3 style={{ marginBottom: 6 }}>📬 Multi-comptes</h3>
+            <h3 style={{ marginBottom: 6 }}>📬 Multi-account</h3>
             <p className="muted" style={{ fontSize: 14 }}>
-              Nombre illimité de comptes IMAP/SMTP par utilisateur, chacun avec sa propre
-              signature HTML.
+              Unlimited IMAP/SMTP accounts per user, each with its own HTML signature.
             </p>
           </div>
           <div className="card card-hover">
-            <h3 style={{ marginBottom: 6 }}>🧰 7 outils MCP</h3>
+            <h3 style={{ marginBottom: 6 }}>🧰 17 MCP tools</h3>
             <p className="muted" style={{ fontSize: 14 }}>
-              list_accounts, list_folders, list_messages, get_message, search_messages,
-              send_message, reply_message.
+              Read, search, send, reply, flag, move, copy, delete, and manage folders —
+              everything Claude needs to triage your inbox.
             </p>
           </div>
           <div className="card card-hover">
             <h3 style={{ marginBottom: 6 }}>🐳 Self-hosted</h3>
             <p className="muted" style={{ fontSize: 14 }}>
-              Un seul container Next.js + Postgres. Ton serveur, tes clés, ton domaine.
+              One Next.js container plus Postgres. Your server, your keys, your domain.
             </p>
           </div>
         </div>
@@ -110,14 +109,14 @@ export default function HomePage() {
             <div className="row row-between">
               <div>
                 <strong style={{ display: "block", marginBottom: 4 }}>
-                  Prêt à connecter Claude ?
+                  Ready to connect Claude?
                 </strong>
                 <span className="muted" style={{ fontSize: 14 }}>
-                  Guide pas à pas pour Claude.ai, Claude Desktop et Claude Code.
+                  Step-by-step guide for Claude.ai, Claude Desktop and Claude Code.
                 </span>
               </div>
               <Link href="/connect" className="btn btn-primary">
-                Voir le guide →
+                Open guide →
               </Link>
             </div>
           </div>

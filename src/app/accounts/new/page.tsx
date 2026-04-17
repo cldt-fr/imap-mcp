@@ -6,10 +6,10 @@ export default function NewAccountPage() {
     <div>
       <div style={{ marginBottom: 16 }}>
         <Link href="/accounts" className="muted">
-          ← Retour
+          ← Back
         </Link>
       </div>
-      <h2 style={{ marginBottom: 24 }}>Nouveau compte email</h2>
+      <h2 style={{ marginBottom: 24 }}>New email account</h2>
       <AccountForm mode="create" />
     </div>
   );

@@ -55,18 +55,18 @@ export function AccountsList({ accounts }: { accounts: Account[] }) {
     if (t.status === "testing")
       return (
         <span className="badge badge-muted">
-          <span className="spinner" /> Test…
+          <span className="spinner" /> Testing…
         </span>
       );
     if (t.status === "error")
-      return <span className="badge badge-danger">Erreur</span>;
+      return <span className="badge badge-danger">Error</span>;
     const { imap, smtp } = t.result;
     if (imap.ok && smtp.ok)
-      return <span className="badge badge-success">✓ Opérationnel</span>;
+      return <span className="badge badge-success">✓ Working</span>;
     if (!imap.ok && !smtp.ok)
-      return <span className="badge badge-danger">IMAP + SMTP KO</span>;
-    if (!imap.ok) return <span className="badge badge-danger">IMAP KO</span>;
-    return <span className="badge badge-danger">SMTP KO</span>;
+      return <span className="badge badge-danger">IMAP + SMTP failed</span>;
+    if (!imap.ok) return <span className="badge badge-danger">IMAP failed</span>;
+    return <span className="badge badge-danger">SMTP failed</span>;
   }
 
   return (
@@ -87,7 +87,7 @@ export function AccountsList({ accounts }: { accounts: Account[] }) {
               >
                 <div className="row" style={{ gap: 8 }}>
                   <strong>{a.label}</strong>
-                  {a.isDefault && <span className="badge badge-soft">par défaut</span>}
+                  {a.isDefault && <span className="badge badge-soft">default</span>}
                   <StatusBadge t={t} />
                 </div>
                 <div className="muted" style={{ marginTop: 4, fontSize: 14 }}>
@@ -101,10 +101,10 @@ export function AccountsList({ accounts }: { accounts: Account[] }) {
                   disabled={t.status === "testing"}
                   onClick={() => runTest(a.id)}
                 >
-                  {t.status === "testing" ? "Test…" : "Tester"}
+                  {t.status === "testing" ? "Testing…" : "Test"}
                 </button>
                 <Link href={`/accounts/${a.id}`} className="btn btn-sm">
-                  Modifier
+                  Edit
                 </Link>
               </div>
             </div>
@@ -116,20 +116,20 @@ export function AccountsList({ accounts }: { accounts: Account[] }) {
                     t.result.imap.ok ? "alert alert-success" : "alert alert-error"
                   }
                 >
-                  <strong>IMAP</strong> · {t.result.imap.ok ? "connexion OK" : t.result.imap.error}
+                  <strong>IMAP</strong> · {t.result.imap.ok ? "connection OK" : t.result.imap.error}
                 </div>
                 <div
                   className={
                     t.result.smtp.ok ? "alert alert-success" : "alert alert-error"
                   }
                 >
-                  <strong>SMTP</strong> · {t.result.smtp.ok ? "connexion OK" : t.result.smtp.error}
+                  <strong>SMTP</strong> · {t.result.smtp.ok ? "connection OK" : t.result.smtp.error}
                 </div>
                 {!t.result.smtp.ok &&
                   t.result.smtp.error?.includes("wrong version number") && (
                     <div className="alert alert-warning">
-                      💡 Port/SSL incohérent. Essaie <strong>465 + SSL/TLS</strong> ou{" "}
-                      <strong>587 sans SSL/TLS</strong>.
+                      💡 Port/SSL mismatch. Try <strong>465 + SSL/TLS</strong> or{" "}
+                      <strong>587 without SSL/TLS</strong>.
                     </div>
                   )}
               </div>
@@ -137,7 +137,7 @@ export function AccountsList({ accounts }: { accounts: Account[] }) {
 
             {t.status === "error" && (
               <div className="alert alert-error" style={{ marginTop: 14 }}>
-                Erreur : {t.message}
+                Error: {t.message}
               </div>
             )}
           </div>

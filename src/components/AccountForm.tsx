@@ -60,7 +60,7 @@ const PRESETS: Preset[] = [
     smtpHost: "smtp.gmail.com",
     smtpPort: 465,
     smtpSecure: true,
-    hint: "Utilise un mot de passe d'application : myaccount.google.com/apppasswords",
+    hint: "Use an app password: myaccount.google.com/apppasswords",
   },
   {
     id: "outlook",
@@ -81,7 +81,7 @@ const PRESETS: Preset[] = [
     smtpHost: "smtp.mail.me.com",
     smtpPort: 587,
     smtpSecure: false,
-    hint: "Nécessite un mot de passe d'application Apple.",
+    hint: "Requires an Apple app-specific password.",
   },
   {
     id: "yahoo",
@@ -117,10 +117,10 @@ const PRESETS: Preset[] = [
 
 function portSecureWarning(port: number, secure: boolean): string | null {
   if (secure && (port === 587 || port === 25)) {
-    return `Port ${port} avec SSL/TLS coché : probablement incorrect. Décoche SSL/TLS (STARTTLS) ou passe en 465.`;
+    return `Port ${port} with SSL/TLS enabled is usually wrong. Uncheck SSL/TLS (STARTTLS) or switch to port 465.`;
   }
   if (!secure && port === 465) {
-    return "Port 465 sans SSL/TLS : probablement incorrect. Coche SSL/TLS.";
+    return "Port 465 without SSL/TLS is usually wrong. Enable SSL/TLS.";
   }
   return null;
 }
@@ -210,7 +210,7 @@ export function AccountForm({
 
   async function remove() {
     if (!accountId) return;
-    if (!confirm("Supprimer ce compte ?")) return;
+    if (!confirm("Delete this account?")) return;
     const res = await fetch(`/api/accounts/${accountId}`, { method: "DELETE" });
     if (res.ok) {
       router.push("/accounts");
@@ -224,9 +224,9 @@ export function AccountForm({
 
       {mode === "create" && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <h3 style={{ marginBottom: 8 }}>Préréglage fournisseur</h3>
+          <h3 style={{ marginBottom: 8 }}>Provider preset</h3>
           <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
-            Pré-remplit hôtes, ports et SSL/TLS. Tu pourras ajuster ensuite.
+            Pre-fills hosts, ports and SSL/TLS. You can tweak anything afterwards.
           </p>
           <div className="row" style={{ gap: 8 }}>
             {PRESETS.map((p) => (
@@ -244,19 +244,19 @@ export function AccountForm({
       )}
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginBottom: 16 }}>Informations générales</h3>
+        <h3 style={{ marginBottom: 16 }}>General information</h3>
         <div className="field">
-          <label>Libellé</label>
+          <label>Label</label>
           <input
             className="input"
             value={values.label}
             onChange={(e) => update("label", e.target.value)}
-            placeholder="Perso Gmail"
+            placeholder="Personal Gmail"
             required
           />
         </div>
         <div className="field">
-          <label>Adresse email (expéditeur)</label>
+          <label>Email address (sender)</label>
           <input
             className="input"
             type="email"
@@ -271,15 +271,15 @@ export function AccountForm({
             checked={values.isDefault}
             onChange={(e) => update("isDefault", e.target.checked)}
           />
-          Compte par défaut
+          Default account
         </label>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginBottom: 16 }}>IMAP (réception)</h3>
+        <h3 style={{ marginBottom: 16 }}>IMAP (incoming)</h3>
         <div className="grid-2">
           <div className="field">
-            <label>Hôte</label>
+            <label>Host</label>
             <input
               className="input"
               value={values.imapHost}
@@ -300,7 +300,7 @@ export function AccountForm({
           </div>
         </div>
         <div className="field">
-          <label>Utilisateur</label>
+          <label>Username</label>
           <input
             className="input"
             value={values.imapUser}
@@ -309,7 +309,7 @@ export function AccountForm({
           />
         </div>
         <div className="field">
-          <label>Mot de passe {mode === "edit" && <span className="hint">(laisser vide pour conserver)</span>}</label>
+          <label>Password {mode === "edit" && <span className="hint">(leave empty to keep)</span>}</label>
           <input
             className="input"
             type="password"
@@ -325,7 +325,7 @@ export function AccountForm({
             checked={values.imapSecure}
             onChange={(e) => update("imapSecure", e.target.checked)}
           />
-          SSL/TLS implicite (port 993 typiquement)
+          Implicit SSL/TLS (typically port 993)
         </label>
         {imapWarn && (
           <div className="alert alert-warning" style={{ marginTop: 12 }}>
@@ -335,10 +335,10 @@ export function AccountForm({
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginBottom: 16 }}>SMTP (envoi)</h3>
+        <h3 style={{ marginBottom: 16 }}>SMTP (outgoing)</h3>
         <div className="grid-2">
           <div className="field">
-            <label>Hôte</label>
+            <label>Host</label>
             <input
               className="input"
               value={values.smtpHost}
@@ -359,7 +359,7 @@ export function AccountForm({
           </div>
         </div>
         <div className="field">
-          <label>Utilisateur</label>
+          <label>Username</label>
           <input
             className="input"
             value={values.smtpUser}
@@ -368,7 +368,7 @@ export function AccountForm({
           />
         </div>
         <div className="field">
-          <label>Mot de passe {mode === "edit" && <span className="hint">(laisser vide pour conserver)</span>}</label>
+          <label>Password {mode === "edit" && <span className="hint">(leave empty to keep)</span>}</label>
           <input
             className="input"
             type="password"
@@ -384,7 +384,7 @@ export function AccountForm({
             checked={values.smtpSecure}
             onChange={(e) => update("smtpSecure", e.target.checked)}
           />
-          SSL/TLS implicite (port 465) — laisser décoché pour STARTTLS (587)
+          Implicit SSL/TLS (port 465) — leave unchecked for STARTTLS (587)
         </label>
         {smtpWarn && (
           <div className="alert alert-warning" style={{ marginTop: 12 }}>
@@ -394,7 +394,7 @@ export function AccountForm({
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginBottom: 16 }}>Signature HTML</h3>
+        <h3 style={{ marginBottom: 16 }}>HTML signature</h3>
         <SignatureEditor
           value={values.signatureHtml}
           onChange={(html) => update("signatureHtml", html)}
@@ -403,13 +403,13 @@ export function AccountForm({
 
       {testResult && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <h3 style={{ marginBottom: 8 }}>Résultat du test</h3>
+          <h3 style={{ marginBottom: 8 }}>Test result</h3>
           <div style={{ display: "flex", gap: 16, flexDirection: "column" }}>
             <div className={testResult.imap.ok ? "alert alert-success" : "alert alert-error"}>
-              IMAP : {testResult.imap.ok ? "OK" : testResult.imap.error}
+              IMAP: {testResult.imap.ok ? "OK" : testResult.imap.error}
             </div>
             <div className={testResult.smtp.ok ? "alert alert-success" : "alert alert-error"}>
-              SMTP : {testResult.smtp.ok ? "OK" : testResult.smtp.error}
+              SMTP: {testResult.smtp.ok ? "OK" : testResult.smtp.error}
             </div>
           </div>
         </div>
@@ -418,17 +418,17 @@ export function AccountForm({
       <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: 8 }}>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? "Enregistrement…" : mode === "create" ? "Créer" : "Enregistrer"}
+            {submitting ? "Saving…" : mode === "create" ? "Create" : "Save"}
           </button>
           {mode === "edit" && (
             <button type="button" className="btn" disabled={testing} onClick={testConnection}>
-              {testing ? "Test en cours…" : "Tester la connexion"}
+              {testing ? "Testing…" : "Test connection"}
             </button>
           )}
         </div>
         {mode === "edit" && (
           <button type="button" className="btn btn-danger" onClick={remove}>
-            Supprimer
+            Delete
           </button>
         )}
       </div>

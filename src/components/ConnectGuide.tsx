@@ -54,36 +54,35 @@ export function ConnectGuide({ mcpUrl }: { mcpUrl: string }) {
           <li>
             <div className="step-body">
               <p>
-                Sur <a href="https://claude.ai" target="_blank" rel="noreferrer">claude.ai</a>,
-                ouvre <strong>Paramètres → Connecteurs</strong>.
+                On <a href="https://claude.ai" target="_blank" rel="noreferrer">claude.ai</a>,
+                open <strong>Settings → Connectors</strong>.
               </p>
             </div>
           </li>
           <li>
             <div className="step-body">
-              <p>Clique sur <strong>&ldquo;Ajouter un connecteur personnalisé&rdquo;</strong>.</p>
+              <p>Click <strong>&ldquo;Add custom connector&rdquo;</strong>.</p>
             </div>
           </li>
           <li>
             <div className="step-body">
-              <p>Colle l&apos;URL du serveur MCP :</p>
+              <p>Paste the MCP server URL:</p>
               <CopyBlock value={mcpUrl} />
             </div>
           </li>
           <li>
             <div className="step-body">
               <p>
-                Donne-lui un nom (par ex. <em>Email</em>), puis valide. Claude ouvrira une fenêtre
-                Clerk pour que tu t&apos;authentifies sur ce serveur : accepte l&apos;accès.
+                Give it a name (e.g. <em>Email</em>) and confirm. Claude opens a Clerk
+                window so you can sign in to this server — approve the access.
               </p>
             </div>
           </li>
           <li>
             <div className="step-body">
               <p>
-                Dans une nouvelle conversation, active le connecteur depuis la palette
-                d&apos;outils. Tu peux maintenant demander :
-                &ldquo;Liste mes 10 derniers mails&rdquo;.
+                In a new conversation, enable the connector from the tools palette.
+                You can now ask: &ldquo;List my 10 most recent emails.&rdquo;
               </p>
             </div>
           </li>
@@ -95,35 +94,39 @@ export function ConnectGuide({ mcpUrl }: { mcpUrl: string }) {
           <li>
             <div className="step-body">
               <p>
-                Dans Claude Desktop, ouvre <strong>Settings → Developer →
-                Edit Config</strong> (macOS :
+                In Claude Desktop, open <strong>Settings → Developer →
+                Edit Config</strong> (macOS:
                 <code> ~/Library/Application Support/Claude/claude_desktop_config.json</code>).
               </p>
             </div>
           </li>
           <li>
             <div className="step-body">
-              <p>Fusionne cette entrée avec ton fichier :</p>
+              <p>Merge this entry into your config file:</p>
               <pre className="code-block">
                 <code>{desktopConfig}</code>
                 <CopyButton value={desktopConfig} />
               </pre>
               <p className="muted" style={{ fontSize: 13 }}>
-                Le pont <code>mcp-remote</code> gère OAuth 2.1 pour les versions de Claude Desktop
-                qui ne parlent pas encore HTTP directement. Node.js ≥ 18 requis.
+                The <code>mcp-remote</code> bridge handles OAuth 2.1 for versions of
+                Claude Desktop that don&apos;t yet speak HTTP MCP directly. Node.js ≥ 18
+                required.
               </p>
             </div>
           </li>
           <li>
             <div className="step-body">
-              <p>Redémarre Claude Desktop. Une fenêtre de navigateur s&apos;ouvre automatiquement pour la première connexion : signe-toi avec Clerk et autorise.</p>
+              <p>
+                Restart Claude Desktop. A browser window opens automatically for the
+                first connection — sign in with Clerk and authorize.
+              </p>
             </div>
           </li>
           <li>
             <div className="step-body">
               <p>
-                Dans l&apos;interface, le marteau d&apos;outils affiche maintenant
-                <strong> email-mcp</strong> avec 7 tools (list, search, send, …).
+                The tools hammer in the composer now shows <strong>email-mcp</strong>
+                with 17 tools (list, search, send, flag, move, …).
               </p>
             </div>
           </li>
@@ -134,23 +137,23 @@ export function ConnectGuide({ mcpUrl }: { mcpUrl: string }) {
         <ol className="step-list">
           <li>
             <div className="step-body">
-              <p>Depuis un terminal, exécute :</p>
+              <p>From a terminal, run:</p>
               <CopyBlock value={codeCmd} />
             </div>
           </li>
           <li>
             <div className="step-body">
               <p>
-                Lance <code>claude</code>, puis tape <kbd>/mcp</kbd> — tu verras
-                <strong> email-mcp</strong> dans la liste. Le premier appel déclenche le
-                flux OAuth : valide dans le navigateur.
+                Launch <code>claude</code>, then type <kbd>/mcp</kbd> — you&apos;ll see
+                <strong> email-mcp</strong> in the list. The first tool call triggers
+                the OAuth flow: approve in the browser.
               </p>
             </div>
           </li>
           <li>
             <div className="step-body">
               <p>
-                Pour supprimer plus tard :{" "}
+                To remove it later:{" "}
                 <code>claude mcp remove email-mcp</code>.
               </p>
             </div>

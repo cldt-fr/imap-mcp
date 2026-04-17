@@ -25,7 +25,7 @@ export function SignatureEditor({
     }
   }, [value, editor]);
 
-  if (!editor) return <div className="tiptap">Chargement…</div>;
+  if (!editor) return <div className="tiptap">Loading…</div>;
 
   return (
     <div>
@@ -61,12 +61,12 @@ export function SignatureEditor({
         <button
           type="button"
           onClick={() => {
-            const url = window.prompt("URL :");
+            const url = window.prompt("URL:");
             if (!url) return;
             editor.chain().focus().extendMarkRange("link").run();
           }}
         >
-          lien
+          link
         </button>
       </div>
       <EditorContent editor={editor} />

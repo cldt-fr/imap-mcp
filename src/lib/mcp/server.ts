@@ -49,7 +49,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       capabilities: { tools: {} },
       instructions:
-        "Access the current user's registered IMAP email accounts. Use list_accounts first to discover account IDs, then read, search or send emails.",
+        "Access the current user's registered IMAP email accounts. Call list_accounts first to discover account IDs, then read, search, send, flag, move or delete messages. IMAP folders are identified by their path; messages by their UID.",
     },
   );
 
@@ -57,7 +57,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "list_accounts",
     {
       title: "List email accounts",
-      description: "Liste les comptes email IMAP/SMTP configurés par l'utilisateur courant.",
+      description: "List the IMAP/SMTP email accounts configured by the current user.",
       inputSchema: {},
     },
     async () => {
@@ -74,9 +74,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "list_folders",
     {
       title: "List IMAP folders",
-      description: "Liste les dossiers (mailboxes) d'un compte.",
+      description: "List the folders (mailboxes) of an account.",
       inputSchema: {
-        account_id: z.string().uuid().describe("ID du compte renvoyé par list_accounts"),
+        account_id: z.string().uuid().describe("Account ID returned by list_accounts"),
       },
     },
     async ({ account_id }) => {
@@ -95,12 +95,12 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "List messages in folder",
       description:
-        "Liste les en-têtes des messages d'un dossier (par défaut les 50 plus récents).",
+        "List message headers in a folder (default: the 50 most recent).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string().default("INBOX"),
         limit: z.number().int().min(1).max(200).optional(),
-        since: z.string().optional().describe("ISO date — uniquement après cette date"),
+        since: z.string().optional().describe("ISO date — only messages after this date"),
         unread_only: z.boolean().optional(),
       },
     },
@@ -125,7 +125,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Get full message",
       description:
-        "Récupère un message complet (en-têtes, texte, HTML, liste des pièces jointes).",
+        "Fetch a full message (headers, text, HTML, attachment metadata).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -149,7 +149,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Search messages",
       description:
-        "Recherche IMAP (from, to, subject, body, plages de dates, non-lus).",
+        "IMAP search (from, to, subject, body, date ranges, unread only).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string().default("INBOX"),
@@ -188,7 +188,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "send_message",
     {
       title: "Send email",
-      description: "Envoie un email via le SMTP du compte. La signature HTML est ajoutée si include_signature=true.",
+      description: "Send an email through the account's SMTP. The HTML signature is appended when include_signature=true.",
       inputSchema: {
         account_id: z.string().uuid(),
         to: z.array(z.string().email()).min(1),
@@ -227,7 +227,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Reply to message",
       description:
-        "Répond à un message existant (conserve In-Reply-To et References, cite l'original si quote_original=true).",
+        "Reply to an existing message (preserves In-Reply-To and References, quotes the original when quote_original=true).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -265,7 +265,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
         let bodyText = args.body_text;
         let bodyHtml = args.body_html;
         if (args.quote_original) {
-          const quoteHeader = `\n\nLe ${original.date ?? ""}, ${original.from ?? ""} a écrit :\n`;
+          const quoteHeader = `\n\nOn ${original.date ?? ""}, ${original.from ?? ""} wrote:\n`;
           if (bodyText && original.text) {
             const quoted = original.text
               .split("\n")
@@ -299,7 +299,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "mark_read",
     {
       title: "Mark as read",
-      description: "Marque un ou plusieurs messages comme lus (ajoute le flag \\Seen).",
+      description: "Mark one or more messages as read (adds the \\Seen flag).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -321,7 +321,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "mark_unread",
     {
       title: "Mark as unread",
-      description: "Marque un ou plusieurs messages comme non-lus (retire le flag \\Seen).",
+      description: "Mark one or more messages as unread (removes the \\Seen flag).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -344,7 +344,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Flag messages (star)",
       description:
-        "Ajoute une étoile / marqueur \\Flagged à un ou plusieurs messages (équivalent de l'étoile Gmail).",
+        "Star / flag one or more messages by adding the \\Flagged marker (equivalent to Gmail's star).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -366,7 +366,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "unflag_messages",
     {
       title: "Remove flag (unstar)",
-      description: "Retire le marqueur \\Flagged.",
+      description: "Remove the \\Flagged marker (unstar).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -389,7 +389,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Add/remove arbitrary IMAP flags",
       description:
-        "Outil avancé : ajoute et/ou retire des flags IMAP arbitraires (\\Seen, \\Flagged, \\Answered, $Important, labels custom…).",
+        "Advanced: add and/or remove arbitrary IMAP flags (\\Seen, \\Flagged, \\Answered, $Important, custom labels, …).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -416,7 +416,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "move_messages",
     {
       title: "Move messages",
-      description: "Déplace des messages d'un dossier vers un autre (les UIDs changent côté destination).",
+      description: "Move messages from one folder to another (destination assigns new UIDs).",
       inputSchema: {
         account_id: z.string().uuid(),
         from_folder: z.string(),
@@ -439,7 +439,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "copy_messages",
     {
       title: "Copy messages",
-      description: "Copie des messages dans un autre dossier sans les retirer de l'original.",
+      description: "Copy messages to another folder without removing them from the source.",
       inputSchema: {
         account_id: z.string().uuid(),
         from_folder: z.string(),
@@ -463,7 +463,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Delete messages",
       description:
-        "Supprime des messages. Par défaut, les déplace vers la corbeille (Trash). Mettre permanent=true pour un expunge immédiat et irréversible.",
+        "Delete messages. Defaults to moving them to the Trash folder; set permanent=true for an immediate and irreversible expunge.",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -471,7 +471,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
         permanent: z
           .boolean()
           .default(false)
-          .describe("Si true, expunge au lieu de déplacer vers la corbeille."),
+          .describe("If true, expunge instead of moving to Trash."),
       },
     },
     async ({ account_id, folder, uids, permanent }) => {
@@ -490,7 +490,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Create folder",
       description:
-        "Crée un nouveau dossier IMAP. Le chemin peut être hiérarchique (ex. 'Archives/2026').",
+        "Create a new IMAP folder. Paths may be hierarchical (e.g. 'Archives/2026').",
       inputSchema: {
         account_id: z.string().uuid(),
         path: z.string().min(1),
@@ -511,7 +511,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "rename_folder",
     {
       title: "Rename folder",
-      description: "Renomme ou déplace un dossier.",
+      description: "Rename or reparent a folder.",
       inputSchema: {
         account_id: z.string().uuid(),
         from_path: z.string().min(1),
@@ -534,7 +534,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Delete folder",
       description:
-        "Supprime un dossier IMAP (attention : souvent irréversible côté serveur). N'autorise jamais INBOX.",
+        "Delete an IMAP folder (warning: usually irreversible on the server). INBOX is rejected.",
       inputSchema: {
         account_id: z.string().uuid(),
         path: z.string().min(1),

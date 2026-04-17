@@ -4,7 +4,7 @@ import { useState } from "react";
 
 export function CopyButton({
   value,
-  label = "Copier",
+  label = "Copy",
   className = "btn btn-sm",
 }: {
   value: string;
@@ -37,7 +37,7 @@ export function CopyButton({
 
   return (
     <button type="button" onClick={copy} className={className}>
-      {copied ? "✓ Copié" : label}
+      {copied ? "✓ Copied" : label}
     </button>
   );
 }

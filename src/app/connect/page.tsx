@@ -12,78 +12,80 @@ export default function ConnectPage() {
     <div>
       <div style={{ marginBottom: 12 }}>
         <Link href="/accounts" className="muted">
-          ← Retour aux comptes
+          ← Back to accounts
         </Link>
       </div>
 
       <div className="stack-lg stack">
         <div>
-          <h2 style={{ marginBottom: 6 }}>Connecter à Claude</h2>
+          <h2 style={{ marginBottom: 6 }}>Connect to Claude</h2>
           <p className="muted">
-            Configure Claude pour qu&apos;il lise et envoie tes emails via ce serveur MCP.
-            L&apos;authentification passe par OAuth 2.1 (Clerk), aucun mot de passe n&apos;est
-            partagé avec Claude.
+            Set up Claude to read and send email through this MCP server. Authentication
+            uses OAuth 2.1 (Clerk) — no IMAP password is ever shared with Claude.
           </p>
         </div>
 
         <div className="card">
           <div className="row row-between" style={{ marginBottom: 8 }}>
-            <strong>URL du serveur MCP</strong>
+            <strong>MCP server URL</strong>
             <span className="badge badge-soft">Bearer + PKCE</span>
           </div>
           <CopyBlock value={mcpUrl} />
           <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-            Cette seule URL suffit : les clients MCP conformes découvrent automatiquement
-            l&apos;authorization server, s&apos;enregistrent via DCR et lancent le flux OAuth.
+            This URL is all you need: conformant MCP clients discover the authorization
+            server, register via DCR, and run the OAuth flow automatically.
           </p>
         </div>
 
         <div className="card">
-          <h3 style={{ marginBottom: 16 }}>Étapes selon ton client</h3>
+          <h3 style={{ marginBottom: 16 }}>Steps for your client</h3>
           <ConnectGuide mcpUrl={mcpUrl} />
         </div>
 
         <div className="card">
-          <h3 style={{ marginBottom: 8 }}>Tester l&apos;intégration</h3>
+          <h3 style={{ marginBottom: 8 }}>Try it out</h3>
           <p className="muted" style={{ marginBottom: 12 }}>
-            Une fois connecté, essaie une de ces demandes dans Claude :
+            Once connected, ask Claude one of these:
           </p>
           <ul
             className="stack-sm stack"
             style={{ listStyle: "disc", paddingLeft: 18, color: "var(--fg-soft)" }}
           >
-            <li>« Liste mes comptes email. »</li>
-            <li>« Montre-moi les 5 derniers mails non lus dans l&apos;Inbox. »</li>
+            <li>“List my email accounts.”</li>
+            <li>“Show me the 5 most recent unread messages in my inbox.”</li>
             <li>
-              « Recherche les emails de <em>factures@</em> du mois dernier. »
+              “Find emails from <em>invoices@</em> over the last month.”
             </li>
             <li>
-              « Réponds à ce mail en disant que je suis disponible jeudi à 15h. »
+              “Reply to this thread saying I&apos;m available Thursday at 3pm.”
+            </li>
+            <li>
+              “Archive all newsletters from last week into an <em>Archive/2026</em> folder.”
             </li>
           </ul>
         </div>
 
         <div className="card">
-          <h3 style={{ marginBottom: 8 }}>Prérequis</h3>
+          <h3 style={{ marginBottom: 8 }}>Requirements</h3>
           <ul
             className="stack-sm stack"
             style={{ listStyle: "disc", paddingLeft: 18, color: "var(--fg-soft)" }}
           >
             <li>
-              Au moins <strong>un compte IMAP/SMTP configuré</strong> —
-              <Link href="/accounts/new"> en ajouter un</Link>.
+              At least <strong>one IMAP/SMTP account configured</strong> —
+              <Link href="/accounts/new"> add one</Link>.
             </li>
             <li>
-              Le bouton <em>Tester</em> sur la liste doit passer au vert pour IMAP et SMTP.
+              The <em>Test</em> button on the list must turn green for both IMAP and SMTP.
             </li>
             <li>
-              Pour Gmail / Google Workspace : créer un{" "}
+              Gmail / Google Workspace: create an{" "}
               <a
                 href="https://myaccount.google.com/apppasswords"
                 target="_blank"
                 rel="noreferrer"
               >
-                mot de passe d&apos;application
+                app password
               </a>
               .
             </li>
