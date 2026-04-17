@@ -7,6 +7,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-2025--06--18-green)](https://modelcontextprotocol.io)
 
+![screenshot.png](ressources/screenshot.png)
+
 ---
 
 ## Why
