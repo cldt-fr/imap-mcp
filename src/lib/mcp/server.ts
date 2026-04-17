@@ -3,10 +3,17 @@ import { z } from "zod";
 import type { McpContext } from "./context";
 import { listUserAccounts, requireAccount } from "./context";
 import {
+  copyMessages,
+  createFolder,
+  deleteFolder,
+  deleteMessages,
   getMessage,
   listFolders,
   listMessages,
+  moveMessages,
+  renameFolder,
   searchMessages,
+  setMessageFlags,
 } from "@/lib/imap";
 import { sendMail } from "@/lib/smtp";
 
@@ -282,6 +289,265 @@ export function buildMcpServer(ctx: McpContext): McpServer {
           references: refs.filter(Boolean),
         });
         return jsonResult(result);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "mark_read",
+    {
+      title: "Mark as read",
+      description: "Marque un ou plusieurs messages comme lus (ajoute le flag \\Seen).",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        folder: z.string(),
+        uids: z.array(z.number().int().positive()).min(1),
+      },
+    },
+    async ({ account_id, folder, uids }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await setMessageFlags(acc, folder, uids, { add: ["\\Seen"] });
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "mark_unread",
+    {
+      title: "Mark as unread",
+      description: "Marque un ou plusieurs messages comme non-lus (retire le flag \\Seen).",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        folder: z.string(),
+        uids: z.array(z.number().int().positive()).min(1),
+      },
+    },
+    async ({ account_id, folder, uids }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await setMessageFlags(acc, folder, uids, { remove: ["\\Seen"] });
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "flag_messages",
+    {
+      title: "Flag messages (star)",
+      description:
+        "Ajoute une étoile / marqueur \\Flagged à un ou plusieurs messages (équivalent de l'étoile Gmail).",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        folder: z.string(),
+        uids: z.array(z.number().int().positive()).min(1),
+      },
+    },
+    async ({ account_id, folder, uids }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await setMessageFlags(acc, folder, uids, { add: ["\\Flagged"] });
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "unflag_messages",
+    {
+      title: "Remove flag (unstar)",
+      description: "Retire le marqueur \\Flagged.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        folder: z.string(),
+        uids: z.array(z.number().int().positive()).min(1),
+      },
+    },
+    async ({ account_id, folder, uids }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await setMessageFlags(acc, folder, uids, { remove: ["\\Flagged"] });
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "set_flags",
+    {
+      title: "Add/remove arbitrary IMAP flags",
+      description:
+        "Outil avancé : ajoute et/ou retire des flags IMAP arbitraires (\\Seen, \\Flagged, \\Answered, $Important, labels custom…).",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        folder: z.string(),
+        uids: z.array(z.number().int().positive()).min(1),
+        add: z.array(z.string()).optional(),
+        remove: z.array(z.string()).optional(),
+      },
+    },
+    async ({ account_id, folder, uids, add, remove }) => {
+      try {
+        if (!add?.length && !remove?.length) {
+          return errorResult(new Error("at least one of add/remove must be non-empty"));
+        }
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await setMessageFlags(acc, folder, uids, { add, remove });
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "move_messages",
+    {
+      title: "Move messages",
+      description: "Déplace des messages d'un dossier vers un autre (les UIDs changent côté destination).",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        from_folder: z.string(),
+        to_folder: z.string(),
+        uids: z.array(z.number().int().positive()).min(1),
+      },
+    },
+    async ({ account_id, from_folder, to_folder, uids }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await moveMessages(acc, from_folder, uids, to_folder);
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "copy_messages",
+    {
+      title: "Copy messages",
+      description: "Copie des messages dans un autre dossier sans les retirer de l'original.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        from_folder: z.string(),
+        to_folder: z.string(),
+        uids: z.array(z.number().int().positive()).min(1),
+      },
+    },
+    async ({ account_id, from_folder, to_folder, uids }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await copyMessages(acc, from_folder, uids, to_folder);
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "delete_messages",
+    {
+      title: "Delete messages",
+      description:
+        "Supprime des messages. Par défaut, les déplace vers la corbeille (Trash). Mettre permanent=true pour un expunge immédiat et irréversible.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        folder: z.string(),
+        uids: z.array(z.number().int().positive()).min(1),
+        permanent: z
+          .boolean()
+          .default(false)
+          .describe("Si true, expunge au lieu de déplacer vers la corbeille."),
+      },
+    },
+    async ({ account_id, folder, uids, permanent }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await deleteMessages(acc, folder, uids, { permanent });
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "create_folder",
+    {
+      title: "Create folder",
+      description:
+        "Crée un nouveau dossier IMAP. Le chemin peut être hiérarchique (ex. 'Archives/2026').",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        path: z.string().min(1),
+      },
+    },
+    async ({ account_id, path }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await createFolder(acc, path);
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rename_folder",
+    {
+      title: "Rename folder",
+      description: "Renomme ou déplace un dossier.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        from_path: z.string().min(1),
+        to_path: z.string().min(1),
+      },
+    },
+    async ({ account_id, from_path, to_path }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await renameFolder(acc, from_path, to_path);
+        return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "delete_folder",
+    {
+      title: "Delete folder",
+      description:
+        "Supprime un dossier IMAP (attention : souvent irréversible côté serveur). N'autorise jamais INBOX.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        path: z.string().min(1),
+      },
+    },
+    async ({ account_id, path }) => {
+      try {
+        if (path.toUpperCase() === "INBOX") {
+          return errorResult(new Error("cannot delete INBOX"));
+        }
+        const acc = await requireAccount(ctx.userId, account_id);
+        const res = await deleteFolder(acc, path);
+        return jsonResult(res);
       } catch (e) {
         return errorResult(e);
       }

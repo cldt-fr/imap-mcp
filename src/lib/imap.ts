@@ -227,3 +227,150 @@ export async function searchMessages(
     }
   });
 }
+
+function uidRange(uids: number[]): string {
+  if (!uids.length) throw new Error("uids is empty");
+  return uids.join(",");
+}
+
+export interface FlagMutationResult {
+  uids: number[];
+  added: string[];
+  removed: string[];
+}
+
+export async function setMessageFlags(
+  acc: AccountLike,
+  folder: string,
+  uids: number[],
+  opts: { add?: string[]; remove?: string[] },
+): Promise<FlagMutationResult> {
+  return withImap(acc, async (client) => {
+    const lock = await client.getMailboxLock(folder);
+    try {
+      const range = uidRange(uids);
+      if (opts.add?.length) {
+        await client.messageFlagsAdd(range, opts.add, { uid: true });
+      }
+      if (opts.remove?.length) {
+        await client.messageFlagsRemove(range, opts.remove, { uid: true });
+      }
+      return { uids, added: opts.add ?? [], removed: opts.remove ?? [] };
+    } finally {
+      lock.release();
+    }
+  });
+}
+
+export interface MoveResult {
+  moved: number;
+  sourceUids: number[];
+  destination: string;
+}
+
+export async function moveMessages(
+  acc: AccountLike,
+  fromFolder: string,
+  uids: number[],
+  toFolder: string,
+): Promise<MoveResult> {
+  return withImap(acc, async (client) => {
+    const lock = await client.getMailboxLock(fromFolder);
+    try {
+      const range = uidRange(uids);
+      await client.messageMove(range, toFolder, { uid: true });
+      return { moved: uids.length, sourceUids: uids, destination: toFolder };
+    } finally {
+      lock.release();
+    }
+  });
+}
+
+export async function copyMessages(
+  acc: AccountLike,
+  fromFolder: string,
+  uids: number[],
+  toFolder: string,
+): Promise<MoveResult> {
+  return withImap(acc, async (client) => {
+    const lock = await client.getMailboxLock(fromFolder);
+    try {
+      const range = uidRange(uids);
+      await client.messageCopy(range, toFolder, { uid: true });
+      return { moved: uids.length, sourceUids: uids, destination: toFolder };
+    } finally {
+      lock.release();
+    }
+  });
+}
+
+async function findTrashFolder(client: ImapFlow): Promise<string | null> {
+  const all = await client.list();
+  const byUse = all.find((f) => f.specialUse === "\\Trash");
+  if (byUse) return byUse.path;
+  const byName = all.find((f) =>
+    /^(trash|corbeille|deleted items|deleted|papierkorb)$/i.test(f.name),
+  );
+  return byName?.path ?? null;
+}
+
+export interface DeleteResult {
+  deleted: number;
+  moved_to_trash: boolean;
+  trash_folder?: string | null;
+}
+
+export async function deleteMessages(
+  acc: AccountLike,
+  folder: string,
+  uids: number[],
+  opts: { permanent?: boolean } = {},
+): Promise<DeleteResult> {
+  return withImap(acc, async (client) => {
+    const range = uidRange(uids);
+    if (!opts.permanent) {
+      const trash = await findTrashFolder(client);
+      if (trash && trash !== folder) {
+        const lock = await client.getMailboxLock(folder);
+        try {
+          await client.messageMove(range, trash, { uid: true });
+        } finally {
+          lock.release();
+        }
+        return { deleted: uids.length, moved_to_trash: true, trash_folder: trash };
+      }
+    }
+    const lock = await client.getMailboxLock(folder);
+    try {
+      await client.messageDelete(range, { uid: true });
+      return { deleted: uids.length, moved_to_trash: false, trash_folder: null };
+    } finally {
+      lock.release();
+    }
+  });
+}
+
+export async function createFolder(acc: AccountLike, path: string): Promise<{ path: string }> {
+  return withImap(acc, async (client) => {
+    await client.mailboxCreate(path);
+    return { path };
+  });
+}
+
+export async function renameFolder(
+  acc: AccountLike,
+  from: string,
+  to: string,
+): Promise<{ from: string; to: string }> {
+  return withImap(acc, async (client) => {
+    await client.mailboxRename(from, to);
+    return { from, to };
+  });
+}
+
+export async function deleteFolder(acc: AccountLike, path: string): Promise<{ path: string }> {
+  return withImap(acc, async (client) => {
+    await client.mailboxDelete(path);
+    return { path };
+  });
+}

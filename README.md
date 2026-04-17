@@ -28,7 +28,7 @@ One container, one domain, your server, your keys.
 - 🔑 **OAuth 2.1** (Authorization Code + PKCE) with **Dynamic Client Registration** (RFC 7591)
 - 📬 Unlimited IMAP/SMTP accounts per user, each with its own **HTML signature** (Tiptap editor, DOMPurify-sanitized)
 - 🔒 Credentials encrypted with **AES-256-GCM**; OAuth tokens stored as **SHA-256** hashes only
-- 🧰 7 MCP tools: `list_accounts`, `list_folders`, `list_messages`, `get_message`, `search_messages`, `send_message`, `reply_message`
+- 🧰 **17 MCP tools** across four groups: reading (`list_accounts`, `list_folders`, `list_messages`, `get_message`, `search_messages`), sending (`send_message`, `reply_message`), flags & triage (`mark_read`, `mark_unread`, `flag_messages`, `unflag_messages`, `set_flags`), and mailbox ops (`move_messages`, `copy_messages`, `delete_messages`, `create_folder`, `rename_folder`, `delete_folder`)
 - 🧪 **Test connection from the list** (IMAP `NOOP` + SMTP `VERIFY`) with per-account status badges and actionable error hints
 - ⚡ **Provider presets** on account creation: Gmail, Outlook / Microsoft 365, iCloud, Yahoo, Fastmail, OVH — pre-fills hosts, ports and SSL flags
 - ⚠️ **Live port/SSL consistency warnings** — catches the `wrong version number` trap before it happens
@@ -197,6 +197,8 @@ missing, install it in the container: `docker compose exec app npm i esbuild --n
 
 ## MCP tools
 
+### Reading & searching
+
 | Tool              | Purpose                                                                 |
 | ----------------- | ----------------------------------------------------------------------- |
 | `list_accounts`   | List the current user's configured accounts                             |
@@ -204,8 +206,34 @@ missing, install it in the container: `docker compose exec app npm i esbuild --n
 | `list_messages`   | Headers of the N most recent messages in a folder (with filters)        |
 | `get_message`     | Full message: headers, text, HTML, attachments metadata                 |
 | `search_messages` | IMAP `SEARCH` by `from`, `to`, `subject`, `body`, date ranges, unread   |
+
+### Sending
+
+| Tool              | Purpose                                                                 |
+| ----------------- | ----------------------------------------------------------------------- |
 | `send_message`    | Send via the account's SMTP, optionally appending the HTML signature    |
 | `reply_message`   | Reply preserving `In-Reply-To` / `References`, with optional quoting    |
+
+### Flags & triage
+
+| Tool              | Purpose                                                                 |
+| ----------------- | ----------------------------------------------------------------------- |
+| `mark_read`       | Add `\Seen` to one or more UIDs                                         |
+| `mark_unread`     | Remove `\Seen`                                                          |
+| `flag_messages`   | Add `\Flagged` (the star/favorite)                                      |
+| `unflag_messages` | Remove `\Flagged`                                                       |
+| `set_flags`       | Add and/or remove arbitrary IMAP flags (`\Answered`, `$Important`, labels…) |
+
+### Mailbox operations
+
+| Tool              | Purpose                                                                 |
+| ----------------- | ----------------------------------------------------------------------- |
+| `move_messages`   | Move UIDs from one folder to another                                    |
+| `copy_messages`   | Copy UIDs to another folder without removing the original               |
+| `delete_messages` | Move to Trash by default; `permanent: true` expunges                    |
+| `create_folder`   | Create a new IMAP mailbox (supports hierarchical paths)                 |
+| `rename_folder`   | Rename or reparent a mailbox                                            |
+| `delete_folder`   | Delete a mailbox (INBOX is rejected)                                    |
 
 The authenticated user's ID is always injected from the OAuth token — tools never accept it as an argument, so a client cannot impersonate another user.
 
