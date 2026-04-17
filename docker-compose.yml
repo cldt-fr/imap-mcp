@@ -14,19 +14,22 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5432:5432"
+      - "24819:5432"
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
     restart: unless-stopped
     env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "17483:3000"
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-mcp}:${POSTGRES_PASSWORD:-mcp}@postgres:5432/${POSTGRES_DB:-mcp}
 

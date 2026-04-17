@@ -38,6 +38,93 @@ const empty: AccountFormValues = {
   isDefault: false,
 };
 
+type Preset = {
+  id: string;
+  name: string;
+  imapHost: string;
+  imapPort: number;
+  imapSecure: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  hint?: string;
+};
+
+const PRESETS: Preset[] = [
+  {
+    id: "gmail",
+    name: "Gmail / Workspace",
+    imapHost: "imap.gmail.com",
+    imapPort: 993,
+    imapSecure: true,
+    smtpHost: "smtp.gmail.com",
+    smtpPort: 465,
+    smtpSecure: true,
+    hint: "Utilise un mot de passe d'application : myaccount.google.com/apppasswords",
+  },
+  {
+    id: "outlook",
+    name: "Outlook / Microsoft 365",
+    imapHost: "outlook.office365.com",
+    imapPort: 993,
+    imapSecure: true,
+    smtpHost: "smtp.office365.com",
+    smtpPort: 587,
+    smtpSecure: false,
+  },
+  {
+    id: "icloud",
+    name: "iCloud",
+    imapHost: "imap.mail.me.com",
+    imapPort: 993,
+    imapSecure: true,
+    smtpHost: "smtp.mail.me.com",
+    smtpPort: 587,
+    smtpSecure: false,
+    hint: "Nécessite un mot de passe d'application Apple.",
+  },
+  {
+    id: "yahoo",
+    name: "Yahoo Mail",
+    imapHost: "imap.mail.yahoo.com",
+    imapPort: 993,
+    imapSecure: true,
+    smtpHost: "smtp.mail.yahoo.com",
+    smtpPort: 465,
+    smtpSecure: true,
+  },
+  {
+    id: "fastmail",
+    name: "Fastmail",
+    imapHost: "imap.fastmail.com",
+    imapPort: 993,
+    imapSecure: true,
+    smtpHost: "smtp.fastmail.com",
+    smtpPort: 465,
+    smtpSecure: true,
+  },
+  {
+    id: "ovh",
+    name: "OVH",
+    imapHost: "ssl0.ovh.net",
+    imapPort: 993,
+    imapSecure: true,
+    smtpHost: "ssl0.ovh.net",
+    smtpPort: 465,
+    smtpSecure: true,
+  },
+];
+
+function portSecureWarning(port: number, secure: boolean): string | null {
+  if (secure && (port === 587 || port === 25)) {
+    return `Port ${port} avec SSL/TLS coché : probablement incorrect. Décoche SSL/TLS (STARTTLS) ou passe en 465.`;
+  }
+  if (!secure && port === 465) {
+    return "Port 465 sans SSL/TLS : probablement incorrect. Coche SSL/TLS.";
+  }
+  return null;
+}
+
 export function AccountForm({
   mode,
   accountId,
@@ -60,6 +147,23 @@ export function AccountForm({
   function update<K extends keyof AccountFormValues>(key: K, v: AccountFormValues[K]) {
     setValues((s) => ({ ...s, [key]: v }));
   }
+
+  function applyPreset(id: string) {
+    const p = PRESETS.find((x) => x.id === id);
+    if (!p) return;
+    setValues((s) => ({
+      ...s,
+      imapHost: p.imapHost,
+      imapPort: p.imapPort,
+      imapSecure: p.imapSecure,
+      smtpHost: p.smtpHost,
+      smtpPort: p.smtpPort,
+      smtpSecure: p.smtpSecure,
+    }));
+  }
+
+  const imapWarn = portSecureWarning(values.imapPort, values.imapSecure);
+  const smtpWarn = portSecureWarning(values.smtpPort, values.smtpSecure);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -118,6 +222,27 @@ export function AccountForm({
     <form onSubmit={submit}>
       {error && <div className="alert alert-error">{error}</div>}
 
+      {mode === "create" && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginBottom: 8 }}>Préréglage fournisseur</h3>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+            Pré-remplit hôtes, ports et SSL/TLS. Tu pourras ajuster ensuite.
+          </p>
+          <div className="row" style={{ gap: 8 }}>
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="btn btn-sm"
+                onClick={() => applyPreset(p.id)}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ marginBottom: 16 }}>Informations générales</h3>
         <div className="field">
@@ -140,7 +265,7 @@ export function AccountForm({
             required
           />
         </div>
-        <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+        <label className="checkbox-row" style={{ marginTop: 8 }}>
           <input
             type="checkbox"
             checked={values.isDefault}
@@ -194,14 +319,19 @@ export function AccountForm({
             required={mode === "create"}
           />
         </div>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <label className="checkbox-row">
           <input
             type="checkbox"
             checked={values.imapSecure}
             onChange={(e) => update("imapSecure", e.target.checked)}
           />
-          TLS (SSL implicite)
+          SSL/TLS implicite (port 993 typiquement)
         </label>
+        {imapWarn && (
+          <div className="alert alert-warning" style={{ marginTop: 12 }}>
+            ⚠️ {imapWarn}
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -248,14 +378,19 @@ export function AccountForm({
             required={mode === "create"}
           />
         </div>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <label className="checkbox-row">
           <input
             type="checkbox"
             checked={values.smtpSecure}
             onChange={(e) => update("smtpSecure", e.target.checked)}
           />
-          TLS (SSL implicite)
+          SSL/TLS implicite (port 465) — laisser décoché pour STARTTLS (587)
         </label>
+        {smtpWarn && (
+          <div className="alert alert-warning" style={{ marginTop: 12 }}>
+            ⚠️ {smtpWarn}
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>

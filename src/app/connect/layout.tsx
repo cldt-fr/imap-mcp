@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 
-export default function AccountsLayout({ children }: { children: React.ReactNode }) {
+export default function ConnectLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="container">
       <nav className="topnav">

@@ -29,7 +29,11 @@ One container, one domain, your server, your keys.
 - 📬 Unlimited IMAP/SMTP accounts per user, each with its own **HTML signature** (Tiptap editor, DOMPurify-sanitized)
 - 🔒 Credentials encrypted with **AES-256-GCM**; OAuth tokens stored as **SHA-256** hashes only
 - 🧰 7 MCP tools: `list_accounts`, `list_folders`, `list_messages`, `get_message`, `search_messages`, `send_message`, `reply_message`
-- 🧪 "Test connection" button per account (IMAP `NOOP` + SMTP `VERIFY`)
+- 🧪 **Test connection from the list** (IMAP `NOOP` + SMTP `VERIFY`) with per-account status badges and actionable error hints
+- ⚡ **Provider presets** on account creation: Gmail, Outlook / Microsoft 365, iCloud, Yahoo, Fastmail, OVH — pre-fills hosts, ports and SSL flags
+- ⚠️ **Live port/SSL consistency warnings** — catches the `wrong version number` trap before it happens
+- 🎯 **`/connect` guide** with tabbed, copy-to-clipboard setup instructions for **Claude.ai** (web), **Claude Desktop** and **Claude Code**
+- 🎨 Polished UI: light/dark, hero homepage, status badges, shadows, focus rings
 - 🐳 Ships as a 2-service `docker-compose` (Postgres + app)
 
 ## Architecture
@@ -108,19 +112,49 @@ App is now available at `http://localhost:3000`.
 
 1. Open the app, sign up with Clerk.
 2. Go to **`/accounts/new`**.
-3. Fill IMAP + SMTP details. Gmail / Google Workspace: use an **app password** (`https://myaccount.google.com/apppasswords`).
-4. Optionally paste/edit an HTML signature.
-5. Save, then **Test connection**.
+3. Pick a **provider preset** (Gmail, Outlook, iCloud, Yahoo, Fastmail, OVH) to auto-fill hosts, ports and SSL flags — or fill them by hand.
+4. Gmail / Google Workspace: use an **app password** (`https://myaccount.google.com/apppasswords`).
+5. Optionally paste/edit an HTML signature.
+6. Save, then click **Test** on the account card. Both IMAP and SMTP must come back green.
 
 ### 4. Connect your MCP client
 
-Point your MCP-compatible client at:
+Every signed-in user has a built-in guide at **`/connect`** with tabbed setup instructions
+and copy-to-clipboard snippets for the three major Claude surfaces:
 
-```
-https://<your-domain>/api/mcp
+#### Claude.ai (web)
+
+1. Open **Settings → Connectors → Add custom connector**.
+2. Paste `https://<your-domain>/api/mcp`.
+3. Sign in with Clerk in the popup, approve.
+
+#### Claude Desktop
+
+Merge into `~/Library/Application Support/Claude/claude_desktop_config.json`
+(or the equivalent on Windows/Linux):
+
+```json
+{
+  "mcpServers": {
+    "email-mcp": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://<your-domain>/api/mcp"]
+    }
+  }
+}
 ```
 
-(or `http://localhost:3000/api/mcp` for local)
+Restart the app; the OAuth browser flow launches on first use. Requires Node ≥ 18.
+
+#### Claude Code
+
+```bash
+claude mcp add --transport http email-mcp https://<your-domain>/api/mcp
+```
+
+Then type `/mcp` in a session — the first tool call triggers OAuth.
+
+#### Under the hood
 
 The client will:
 
@@ -131,6 +165,35 @@ The client will:
 5. call `/api/mcp` with `Authorization: Bearer …`.
 
 All of this is handled transparently by conformant MCP clients.
+
+## Troubleshooting
+
+### SMTP test fails with `tls_validate_record_header:wrong version number`
+
+Port/SSL mismatch. The form now warns about this live, and the accounts list surfaces a
+hint when the test fails. Use one of:
+
+| Port | SSL/TLS checkbox | Meaning              |
+| ---- | ---------------- | -------------------- |
+| 465  | ✅ on            | Implicit TLS         |
+| 587  | ❌ off           | STARTTLS upgrade     |
+| 25   | ❌ off           | Plain (discouraged)  |
+
+### First Docker build fails on `DATABASE_URL is not set`
+
+The builder needs a placeholder at build-time; this repo's `Dockerfile` already sets a
+dummy `DATABASE_URL` and `MCP_MASTER_KEY` for the build stage, and receives
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `NEXT_PUBLIC_APP_URL` as build args from
+`docker-compose.yml`. Make sure your `.env` defines them before `docker compose up --build`.
+
+### Applying the schema inside Docker
+
+```bash
+docker compose exec app node node_modules/drizzle-kit/bin.cjs push
+```
+
+(The `drizzle-kit push` command needs `esbuild` at runtime to load the TS config. If
+missing, install it in the container: `docker compose exec app npm i esbuild --no-save`.)
 
 ## MCP tools
 
