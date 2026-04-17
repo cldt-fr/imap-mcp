@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignatureEditor } from "./SignatureEditor";
+import { WritingStyleEditor } from "./WritingStyleEditor";
+import type { WritingStyle } from "@/lib/writing-style";
 
 export interface AccountFormValues {
   label: string;
@@ -19,6 +21,7 @@ export interface AccountFormValues {
   smtpUser: string;
   smtpPassword: string;
   signatureHtml: string;
+  writingStyle: WritingStyle;
   isDefault: boolean;
 }
 
@@ -37,6 +40,7 @@ const empty: AccountFormValues = {
   smtpUser: "",
   smtpPassword: "",
   signatureHtml: "",
+  writingStyle: {},
   isDefault: false,
 };
 
@@ -405,6 +409,18 @@ export function AccountForm({
             ⚠️ {smtpWarn}
           </div>
         )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3 style={{ marginBottom: 4 }}>Writing style</h3>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
+          Tell Claude how you want emails written on your behalf — language, tone, greetings, length, emojis, custom rules.
+          The preview below is exactly what Claude reads when drafting.
+        </p>
+        <WritingStyleEditor
+          value={values.writingStyle}
+          onChange={(ws) => update("writingStyle", ws)}
+        />
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>

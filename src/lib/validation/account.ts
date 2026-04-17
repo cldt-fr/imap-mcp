@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { writingStyleSchema } from "@/lib/writing-style";
 
 export const accountCreateSchema = z.object({
   label: z.string().min(1).max(80),
@@ -15,6 +16,7 @@ export const accountCreateSchema = z.object({
   smtpUser: z.string().min(1),
   smtpPassword: z.string().min(1),
   signatureHtml: z.string().max(20000).optional().nullable(),
+  writingStyle: writingStyleSchema.optional().nullable(),
   isDefault: z.boolean().optional(),
 });
 

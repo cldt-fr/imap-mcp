@@ -5,9 +5,11 @@ import {
   integer,
   boolean,
   timestamp,
+  jsonb,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { WritingStyle } from "@/lib/writing-style";
 
 export const users = pgTable(
   "users",
@@ -40,6 +42,7 @@ export const mailAccounts = pgTable(
     smtpUser: text("smtp_user").notNull(),
     smtpPasswordEnc: text("smtp_password_enc").notNull(),
     signatureHtml: text("signature_html"),
+    writingStyle: jsonb("writing_style").$type<WritingStyle>(),
     isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

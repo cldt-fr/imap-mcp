@@ -103,7 +103,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       capabilities: { tools: {} },
       instructions:
-        "Access the current user's registered IMAP email accounts. Call list_accounts first to discover account IDs, then read, search, send, flag, move or delete messages. IMAP folders are identified by their path; messages by their UID.",
+        "Access the current user's registered IMAP email accounts. Call list_accounts first to discover account IDs — the response also carries each account's `writingStyleInstructions`, a pre-rendered directive you MUST follow verbatim when drafting via send_message or reply_message (it covers language, tone, formality, greeting, sign-off, length, emoji policy and custom user rules). IMAP folders are identified by their path; messages by their UID.",
     },
   );
 
@@ -250,7 +250,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Send email",
       description:
-        "Send an email through the account's SMTP. The HTML signature is appended when include_signature=true. File attachments are accepted as base64. A copy of the sent message is IMAP-appended to the Sent folder for every provider except Gmail (which already saves to Sent through SMTP).",
+        "Send an email through the account's SMTP. Before drafting, call list_accounts and follow the chosen account's `writingStyleInstructions` verbatim — it encodes language, tone, greetings, length and any custom rules the user configured. The HTML signature is appended when include_signature=true. File attachments are accepted as base64. A copy of the sent message is IMAP-appended to the Sent folder for every provider except Gmail (which already saves to Sent through SMTP).",
       inputSchema: {
         account_id: z.string().uuid(),
         to: z.array(z.string().email()).min(1),
@@ -291,7 +291,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Reply to message",
       description:
-        "Reply to an existing message (preserves In-Reply-To and References, quotes the original when quote_original=true). The reply is IMAP-appended to Sent (skipped on Gmail).",
+        "Reply to an existing message (preserves In-Reply-To and References, quotes the original when quote_original=true). Follow the account's `writingStyleInstructions` from list_accounts when drafting the body. The reply is IMAP-appended to Sent (skipped on Gmail).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),

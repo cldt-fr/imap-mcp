@@ -48,6 +48,7 @@ export default async function EditAccountPage({
           smtpUser: acc.smtpUser,
           smtpPassword: "",
           signatureHtml: acc.signatureHtml ?? "",
+          writingStyle: acc.writingStyle ?? {},
           isDefault: acc.isDefault,
         }}
       />

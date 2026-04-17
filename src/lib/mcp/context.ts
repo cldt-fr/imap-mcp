@@ -1,23 +1,40 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { mailAccounts, type MailAccount } from "@/lib/db/schema";
+import {
+  renderStyleInstructions,
+  isEmptyStyle,
+  type WritingStyle,
+} from "@/lib/writing-style";
 
 export interface McpContext {
   userId: string;
 }
 
 export async function listUserAccounts(userId: string) {
-  return db
+  const rows = await db
     .select({
       id: mailAccounts.id,
       label: mailAccounts.label,
       email: mailAccounts.email,
       fromName: mailAccounts.fromName,
+      writingStyle: mailAccounts.writingStyle,
       isDefault: mailAccounts.isDefault,
     })
     .from(mailAccounts)
     .where(eq(mailAccounts.userId, userId))
     .orderBy(mailAccounts.createdAt);
+
+  return rows.map((r) => {
+    const style: WritingStyle | null = r.writingStyle ?? null;
+    return {
+      ...r,
+      writingStyle: isEmptyStyle(style) ? null : style,
+      writingStyleInstructions: isEmptyStyle(style)
+        ? null
+        : renderStyleInstructions(style),
+    };
+  });
 }
 
 export async function loadAccount(

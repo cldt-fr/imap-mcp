@@ -24,6 +24,7 @@ export async function GET() {
       smtpSecure: mailAccounts.smtpSecure,
       smtpUser: mailAccounts.smtpUser,
       signatureHtml: mailAccounts.signatureHtml,
+      writingStyle: mailAccounts.writingStyle,
       isDefault: mailAccounts.isDefault,
       createdAt: mailAccounts.createdAt,
     })
@@ -75,6 +76,7 @@ export async function POST(req: Request) {
       smtpUser: input.smtpUser,
       smtpPasswordEnc: encrypt(input.smtpPassword),
       signatureHtml: input.signatureHtml ? sanitizeSignatureHtml(input.signatureHtml) : null,
+      writingStyle: input.writingStyle ?? null,
       isDefault: input.isDefault ?? false,
     })
     .returning({ id: mailAccounts.id });
