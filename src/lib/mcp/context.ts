@@ -12,6 +12,7 @@ export async function listUserAccounts(userId: string) {
       id: mailAccounts.id,
       label: mailAccounts.label,
       email: mailAccounts.email,
+      fromName: mailAccounts.fromName,
       isDefault: mailAccounts.isDefault,
     })
     .from(mailAccounts)

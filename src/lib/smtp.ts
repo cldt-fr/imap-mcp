@@ -5,8 +5,14 @@ import type { MailAccount } from "@/lib/db/schema";
 
 export type SmtpAccountLike = Pick<
   MailAccount,
-  "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPasswordEnc" | "email" | "signatureHtml"
+  "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPasswordEnc" | "email" | "fromName" | "signatureHtml"
 >;
+
+function buildFromAddress(acc: SmtpAccountLike): string | { name: string; address: string } {
+  const name = acc.fromName?.trim();
+  if (!name) return acc.email;
+  return { name, address: acc.email };
+}
 
 function buildTransport(acc: SmtpAccountLike) {
   return nodemailer.createTransport({
@@ -91,7 +97,7 @@ export async function sendMail(
   try {
     const { text, html } = appendSignature(acc, input);
     const info = await transport.sendMail({
-      from: acc.email,
+      from: buildFromAddress(acc),
       to: input.to.join(", "),
       cc: input.cc?.join(", "),
       bcc: input.bcc?.join(", "),

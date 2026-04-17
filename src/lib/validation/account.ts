@@ -3,6 +3,7 @@ import { z } from "zod";
 export const accountCreateSchema = z.object({
   label: z.string().min(1).max(80),
   email: z.string().email(),
+  fromName: z.string().max(120).optional().nullable(),
   imapHost: z.string().min(1),
   imapPort: z.number().int().min(1).max(65535),
   imapSecure: z.boolean(),

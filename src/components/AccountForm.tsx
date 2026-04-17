@@ -7,6 +7,7 @@ import { SignatureEditor } from "./SignatureEditor";
 export interface AccountFormValues {
   label: string;
   email: string;
+  fromName: string;
   imapHost: string;
   imapPort: number;
   imapSecure: boolean;
@@ -24,6 +25,7 @@ export interface AccountFormValues {
 const empty: AccountFormValues = {
   label: "",
   email: "",
+  fromName: "",
   imapHost: "",
   imapPort: 993,
   imapSecure: true,
@@ -263,6 +265,18 @@ export function AccountForm({
             value={values.email}
             onChange={(e) => update("email", e.target.value)}
             required
+          />
+        </div>
+        <div className="field">
+          <label>
+            Display name <span className="hint">(optional — shown as the sender in recipients&apos; inboxes)</span>
+          </label>
+          <input
+            className="input"
+            value={values.fromName}
+            onChange={(e) => update("fromName", e.target.value)}
+            placeholder="Jane Doe"
+            maxLength={120}
           />
         </div>
         <label className="checkbox-row" style={{ marginTop: 8 }}>

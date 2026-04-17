@@ -28,6 +28,7 @@ export const mailAccounts = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     label: text("label").notNull(),
     email: text("email").notNull(),
+    fromName: text("from_name"),
     imapHost: text("imap_host").notNull(),
     imapPort: integer("imap_port").notNull(),
     imapSecure: boolean("imap_secure").notNull().default(true),

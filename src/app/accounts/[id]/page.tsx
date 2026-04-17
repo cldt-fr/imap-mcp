@@ -36,6 +36,7 @@ export default async function EditAccountPage({
         initial={{
           label: acc.label,
           email: acc.email,
+          fromName: acc.fromName ?? "",
           imapHost: acc.imapHost,
           imapPort: acc.imapPort,
           imapSecure: acc.imapSecure,

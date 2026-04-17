@@ -55,6 +55,7 @@ export async function PATCH(
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (input.label !== undefined) patch.label = input.label;
   if (input.email !== undefined) patch.email = input.email;
+  if (input.fromName !== undefined) patch.fromName = input.fromName?.trim() || null;
   if (input.imapHost !== undefined) patch.imapHost = input.imapHost;
   if (input.imapPort !== undefined) patch.imapPort = input.imapPort;
   if (input.imapSecure !== undefined) patch.imapSecure = input.imapSecure;
