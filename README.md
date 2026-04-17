@@ -208,7 +208,7 @@ missing, install it in the container: `docker compose exec app npm i esbuild --n
 | `list_messages`   | Headers of the N most recent messages in a folder (with filters)        |
 | `get_message`     | Full message: headers, text, HTML, attachments metadata (with indexes)  |
 | `search_messages` | IMAP `SEARCH` by `from`, `to`, `subject`, `body`, date ranges, unread   |
-| `get_attachment`  | Download an attachment by index; images come back as image content, everything else as an embedded resource blob |
+| `get_attachment`  | Return a signed 15-minute HTTPS download URL for an attachment (file never persisted on the MCP server). Images are also previewed inline. `inline_blob=true` opts into returning the raw base64 as an embedded MCP resource. |
 
 ### Sending
 
@@ -273,6 +273,7 @@ oauth_tokens(id, access_token_hash UNIQUE, refresh_token_hash,
 - Access tokens are **opaque** random strings; DB stores only their SHA-256.
 - Refresh tokens rotate on every use (old one is revoked).
 - Signatures pass through DOMPurify server-side before storage *and* before being injected into outgoing mail.
+- Attachment download URLs are HMAC-SHA256-signed (separate key derived from `MCP_MASTER_KEY`) and expire in 15 minutes. They encode `{userId, accountId, folder, uid, index, exp}` — tampering is rejected in constant time, expired tokens are refused. Files are never written to disk on the MCP server; each request streams directly from IMAP and is garbage-collected after the response.
 - The `/api/mcp` endpoint always returns `WWW-Authenticate: Bearer resource_metadata="…"` on 401, per RFC 9728.
 
 ## Out of scope (v1)

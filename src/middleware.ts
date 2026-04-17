@@ -13,6 +13,7 @@ const isPublicApi = createRouteMatcher([
   "/api/oauth/token(.*)",
   "/api/oauth/register(.*)",
   "/api/oauth/revoke(.*)",
+  "/api/attachments/(.*)",
   "/.well-known/(.*)",
 ]);
 

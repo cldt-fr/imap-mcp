@@ -18,6 +18,26 @@ import {
 } from "@/lib/imap";
 import type { OutgoingAttachment } from "@/lib/smtp";
 import { sendMail } from "@/lib/smtp";
+import { signAttachmentToken } from "@/lib/auth/attachmentToken";
+import { appBaseUrl } from "@/lib/auth/oauth";
+
+function attachmentDownloadUrl(
+  userId: string,
+  accountId: string,
+  folder: string,
+  uid: number,
+  index: number,
+  ttlSeconds = 15 * 60,
+): { url: string; expires_at: string } {
+  const token = signAttachmentToken(
+    { userId, accountId, folder, uid, index },
+    ttlSeconds,
+  );
+  return {
+    url: `${appBaseUrl()}/api/attachments/${token}`,
+    expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+  };
+}
 
 const attachmentSchema = z.object({
   filename: z.string().min(1).max(255),
@@ -170,7 +190,14 @@ export function buildMcpServer(ctx: McpContext): McpServer {
         const acc = await requireAccount(ctx.userId, account_id);
         const msg = await getMessage(acc, folder, uid);
         if (!msg) return errorResult(new Error("message not found"));
-        return jsonResult({ message: msg });
+        const enriched = {
+          ...msg,
+          attachments: msg.attachments.map((a) => ({
+            ...a,
+            ...attachmentDownloadUrl(ctx.userId, account_id, folder, uid, a.index),
+          })),
+        };
+        return jsonResult({ message: enriched });
       } catch (e) {
         return errorResult(e);
       }
@@ -335,9 +362,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
   server.registerTool(
     "get_attachment",
     {
-      title: "Download an attachment",
+      title: "Get an attachment download URL",
       description:
-        "Download the binary content of an attachment from a message. Call get_message first to discover attachment indexes. Images are returned as image content (Claude can display them); everything else is returned as an embedded resource with the base64 blob.",
+        "Return a short-lived (15 min) signed HTTPS URL that the user can click to download the attachment. Images are additionally embedded as image content so Claude can preview them inline. The file is never stored on the server — it's streamed from IMAP on demand. Call get_message first to discover attachment indexes — the URL is also available there. Use inline_blob=true to also return the raw base64 (capped by max_size_mb) for clients that handle embedded resources natively.",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
@@ -347,29 +374,32 @@ export function buildMcpServer(ctx: McpContext): McpServer {
           .int()
           .min(0)
           .describe("Zero-based index from get_message's attachments array"),
+        inline_blob: z
+          .boolean()
+          .default(false)
+          .describe("Also return the raw base64 as an embedded MCP resource (off by default to keep payloads small)."),
         max_size_mb: z
           .number()
           .int()
           .min(1)
           .max(25)
           .default(10)
-          .describe("Hard cap to protect the MCP channel from huge payloads"),
+          .describe("Cap applied when inline_blob=true."),
       },
     },
-    async ({ account_id, folder, uid, attachment_index, max_size_mb }) => {
+    async ({ account_id, folder, uid, attachment_index, inline_blob, max_size_mb }) => {
       try {
         const acc = await requireAccount(ctx.userId, account_id);
         const att = await getAttachment(acc, folder, uid, attachment_index);
         if (!att) return errorResult(new Error("attachment not found"));
 
-        const maxBytes = max_size_mb * 1024 * 1024;
-        if (att.size > maxBytes) {
-          return errorResult(
-            new Error(
-              `attachment is ${Math.round(att.size / 1024 / 1024)} MB, over the ${max_size_mb} MB limit — raise max_size_mb to fetch it`,
-            ),
-          );
-        }
+        const dl = attachmentDownloadUrl(
+          ctx.userId,
+          account_id,
+          folder,
+          uid,
+          attachment_index,
+        );
 
         const summary = {
           filename: att.filename,
@@ -377,27 +407,20 @@ export function buildMcpServer(ctx: McpContext): McpServer {
           size: att.size,
           contentId: att.contentId,
           isInline: att.isInline,
+          download_url: dl.url,
+          expires_at: dl.expires_at,
         };
 
-        const uri = `mail-attachment://${account_id}/${encodeURIComponent(folder)}/${uid}/${attachment_index}`;
-
         const isImage = att.contentType.toLowerCase().startsWith("image/");
-        const content: Array<
+        type Item =
           | { type: "text"; text: string }
           | { type: "image"; data: string; mimeType: string }
           | {
               type: "resource";
-              resource: {
-                uri: string;
-                mimeType: string;
-                blob: string;
-              };
-            }
-        > = [
-          {
-            type: "text",
-            text: JSON.stringify(summary, null, 2),
-          },
+              resource: { uri: string; mimeType: string; blob: string };
+            };
+        const content: Item[] = [
+          { type: "text", text: JSON.stringify(summary, null, 2) },
         ];
 
         if (isImage) {
@@ -406,14 +429,21 @@ export function buildMcpServer(ctx: McpContext): McpServer {
             data: att.base64,
             mimeType: att.contentType,
           });
-        } else {
+        }
+
+        if (inline_blob && !isImage) {
+          const maxBytes = max_size_mb * 1024 * 1024;
+          if (att.size > maxBytes) {
+            return errorResult(
+              new Error(
+                `inline_blob requested but attachment is ${Math.round(att.size / 1024 / 1024)} MB, over the ${max_size_mb} MB limit — raise max_size_mb or rely on download_url`,
+              ),
+            );
+          }
+          const uri = `mail-attachment://${account_id}/${encodeURIComponent(folder)}/${uid}/${attachment_index}`;
           content.push({
             type: "resource",
-            resource: {
-              uri,
-              mimeType: att.contentType,
-              blob: att.base64,
-            },
+            resource: { uri, mimeType: att.contentType, blob: att.base64 },
           });
         }
 
