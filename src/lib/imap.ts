@@ -132,7 +132,14 @@ export interface FullMessage {
   messageId: string | null;
   inReplyTo: string | null;
   references: string[];
-  attachments: Array<{ filename: string | null; size: number; contentType: string }>;
+  attachments: Array<{
+    index: number;
+    filename: string | null;
+    size: number;
+    contentType: string;
+    contentId: string | null;
+    isInline: boolean;
+  }>;
 }
 
 export async function getMessage(
@@ -162,10 +169,13 @@ export async function getMessage(
           : parsed.references
             ? [parsed.references]
             : [],
-        attachments: (parsed.attachments ?? []).map((a) => ({
+        attachments: (parsed.attachments ?? []).map((a, index) => ({
+          index,
           filename: a.filename ?? null,
           size: a.size ?? 0,
           contentType: a.contentType ?? "application/octet-stream",
+          contentId: a.contentId ?? null,
+          isInline: a.contentDisposition === "inline",
         })),
       };
     } finally {
@@ -180,6 +190,48 @@ function addrList(
   if (!field) return [];
   const arr = Array.isArray(field) ? field : [field];
   return arr.map((a) => a.text).filter(Boolean);
+}
+
+export interface AttachmentContent {
+  index: number;
+  filename: string | null;
+  contentType: string;
+  size: number;
+  contentId: string | null;
+  isInline: boolean;
+  base64: string;
+}
+
+export async function getAttachment(
+  acc: AccountLike,
+  folder: string,
+  uid: number,
+  index: number,
+): Promise<AttachmentContent | null> {
+  return withImap(acc, async (client) => {
+    const lock = await client.getMailboxLock(folder);
+    try {
+      const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+      if (!msg || !msg.source) return null;
+      const parsed: ParsedMail = await simpleParser(msg.source);
+      const att = parsed.attachments?.[index];
+      if (!att) return null;
+      const buf = Buffer.isBuffer(att.content)
+        ? att.content
+        : Buffer.from(att.content as Uint8Array);
+      return {
+        index,
+        filename: att.filename ?? null,
+        contentType: att.contentType ?? "application/octet-stream",
+        size: att.size ?? buf.length,
+        contentId: att.contentId ?? null,
+        isInline: att.contentDisposition === "inline",
+        base64: buf.toString("base64"),
+      };
+    } finally {
+      lock.release();
+    }
+  });
 }
 
 export interface SearchCriteria {

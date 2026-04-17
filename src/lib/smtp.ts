@@ -35,6 +35,14 @@ export async function testSmtpConnection(acc: SmtpAccountLike): Promise<void> {
   }
 }
 
+export interface OutgoingAttachment {
+  filename: string;
+  contentBase64: string;
+  contentType?: string;
+  contentId?: string;
+  isInline?: boolean;
+}
+
 export interface SendMailInput {
   to: string[];
   cc?: string[];
@@ -45,6 +53,7 @@ export interface SendMailInput {
   inReplyTo?: string;
   references?: string[];
   includeSignature?: boolean;
+  attachments?: OutgoingAttachment[];
 }
 
 export interface SendMailResult {
@@ -106,6 +115,13 @@ export async function sendMail(
       html,
       inReplyTo: input.inReplyTo,
       references: input.references?.join(" "),
+      attachments: input.attachments?.map((a) => ({
+        filename: a.filename,
+        content: Buffer.from(a.contentBase64, "base64"),
+        contentType: a.contentType,
+        cid: a.contentId,
+        contentDisposition: a.isInline ? "inline" : "attachment",
+      })),
     });
     return {
       messageId: info.messageId,

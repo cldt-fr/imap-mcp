@@ -7,6 +7,7 @@ import {
   createFolder,
   deleteFolder,
   deleteMessages,
+  getAttachment,
   getMessage,
   listFolders,
   listMessages,
@@ -15,7 +16,39 @@ import {
   searchMessages,
   setMessageFlags,
 } from "@/lib/imap";
+import type { OutgoingAttachment } from "@/lib/smtp";
 import { sendMail } from "@/lib/smtp";
+
+const attachmentSchema = z.object({
+  filename: z.string().min(1).max(255),
+  content_base64: z
+    .string()
+    .min(1)
+    .describe("Base64-encoded file contents. Decodes to at most ~25 MB after overhead."),
+  content_type: z
+    .string()
+    .optional()
+    .describe("MIME type. Inferred from the filename extension when omitted."),
+  content_id: z
+    .string()
+    .optional()
+    .describe("RFC 2392 Content-ID for inline references in HTML (e.g. <img src=\"cid:logo\">)."),
+  is_inline: z
+    .boolean()
+    .optional()
+    .describe("If true, attach with Content-Disposition: inline (use with content_id)."),
+});
+
+function toOutgoing(list: z.infer<typeof attachmentSchema>[] | undefined): OutgoingAttachment[] | undefined {
+  if (!list?.length) return undefined;
+  return list.map((a) => ({
+    filename: a.filename,
+    contentBase64: a.content_base64,
+    contentType: a.content_type,
+    contentId: a.content_id,
+    isInline: a.is_inline,
+  }));
+}
 
 function jsonResult(data: unknown) {
   return {
@@ -188,7 +221,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "send_message",
     {
       title: "Send email",
-      description: "Send an email through the account's SMTP. The HTML signature is appended when include_signature=true.",
+      description: "Send an email through the account's SMTP. The HTML signature is appended when include_signature=true. File attachments are accepted as base64.",
       inputSchema: {
         account_id: z.string().uuid(),
         to: z.array(z.string().email()).min(1),
@@ -198,6 +231,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
         body_text: z.string().optional(),
         body_html: z.string().optional(),
         include_signature: z.boolean().default(true),
+        attachments: z.array(attachmentSchema).optional(),
       },
     },
     async (args) => {
@@ -214,6 +248,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
           text: args.body_text,
           html: args.body_html,
           includeSignature: args.include_signature,
+          attachments: toOutgoing(args.attachments),
         });
         return jsonResult(result);
       } catch (e) {
@@ -237,6 +272,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
         include_signature: z.boolean().default(true),
         quote_original: z.boolean().default(true),
         reply_all: z.boolean().default(false),
+        attachments: z.array(attachmentSchema).optional(),
       },
     },
     async (args) => {
@@ -287,8 +323,101 @@ export function buildMcpServer(ctx: McpContext): McpServer {
           includeSignature: args.include_signature,
           inReplyTo: original.messageId ?? undefined,
           references: refs.filter(Boolean),
+          attachments: toOutgoing(args.attachments),
         });
         return jsonResult(result);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_attachment",
+    {
+      title: "Download an attachment",
+      description:
+        "Download the binary content of an attachment from a message. Call get_message first to discover attachment indexes. Images are returned as image content (Claude can display them); everything else is returned as an embedded resource with the base64 blob.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        folder: z.string(),
+        uid: z.number().int().positive(),
+        attachment_index: z
+          .number()
+          .int()
+          .min(0)
+          .describe("Zero-based index from get_message's attachments array"),
+        max_size_mb: z
+          .number()
+          .int()
+          .min(1)
+          .max(25)
+          .default(10)
+          .describe("Hard cap to protect the MCP channel from huge payloads"),
+      },
+    },
+    async ({ account_id, folder, uid, attachment_index, max_size_mb }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const att = await getAttachment(acc, folder, uid, attachment_index);
+        if (!att) return errorResult(new Error("attachment not found"));
+
+        const maxBytes = max_size_mb * 1024 * 1024;
+        if (att.size > maxBytes) {
+          return errorResult(
+            new Error(
+              `attachment is ${Math.round(att.size / 1024 / 1024)} MB, over the ${max_size_mb} MB limit — raise max_size_mb to fetch it`,
+            ),
+          );
+        }
+
+        const summary = {
+          filename: att.filename,
+          contentType: att.contentType,
+          size: att.size,
+          contentId: att.contentId,
+          isInline: att.isInline,
+        };
+
+        const uri = `mail-attachment://${account_id}/${encodeURIComponent(folder)}/${uid}/${attachment_index}`;
+
+        const isImage = att.contentType.toLowerCase().startsWith("image/");
+        const content: Array<
+          | { type: "text"; text: string }
+          | { type: "image"; data: string; mimeType: string }
+          | {
+              type: "resource";
+              resource: {
+                uri: string;
+                mimeType: string;
+                blob: string;
+              };
+            }
+        > = [
+          {
+            type: "text",
+            text: JSON.stringify(summary, null, 2),
+          },
+        ];
+
+        if (isImage) {
+          content.push({
+            type: "image",
+            data: att.base64,
+            mimeType: att.contentType,
+          });
+        } else {
+          content.push({
+            type: "resource",
+            resource: {
+              uri,
+              mimeType: att.contentType,
+              blob: att.base64,
+            },
+          });
+        }
+
+        return { content };
       } catch (e) {
         return errorResult(e);
       }

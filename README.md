@@ -30,7 +30,7 @@ One container, one domain, your server, your keys.
 - 🔑 **OAuth 2.1** (Authorization Code + PKCE) with **Dynamic Client Registration** (RFC 7591)
 - 📬 Unlimited IMAP/SMTP accounts per user, each with its own **HTML signature** (Tiptap editor, DOMPurify-sanitized)
 - 🔒 Credentials encrypted with **AES-256-GCM**; OAuth tokens stored as **SHA-256** hashes only
-- 🧰 **17 MCP tools** across four groups: reading (`list_accounts`, `list_folders`, `list_messages`, `get_message`, `search_messages`), sending (`send_message`, `reply_message`), flags & triage (`mark_read`, `mark_unread`, `flag_messages`, `unflag_messages`, `set_flags`), and mailbox ops (`move_messages`, `copy_messages`, `delete_messages`, `create_folder`, `rename_folder`, `delete_folder`)
+- 🧰 **18 MCP tools** across four groups: reading (`list_accounts`, `list_folders`, `list_messages`, `get_message`, `search_messages`, `get_attachment`), sending (`send_message`, `reply_message`), flags & triage (`mark_read`, `mark_unread`, `flag_messages`, `unflag_messages`, `set_flags`), and mailbox ops (`move_messages`, `copy_messages`, `delete_messages`, `create_folder`, `rename_folder`, `delete_folder`)
 - 🧪 **Test connection from the list** (IMAP `NOOP` + SMTP `VERIFY`) with per-account status badges and actionable error hints
 - ⚡ **Provider presets** on account creation: Gmail, Outlook / Microsoft 365, iCloud, Yahoo, Fastmail, OVH — pre-fills hosts, ports and SSL flags
 - ⚠️ **Live port/SSL consistency warnings** — catches the `wrong version number` trap before it happens
@@ -206,15 +206,16 @@ missing, install it in the container: `docker compose exec app npm i esbuild --n
 | `list_accounts`   | List the current user's configured accounts                             |
 | `list_folders`    | IMAP `LIST` — all mailboxes for a given account                         |
 | `list_messages`   | Headers of the N most recent messages in a folder (with filters)        |
-| `get_message`     | Full message: headers, text, HTML, attachments metadata                 |
+| `get_message`     | Full message: headers, text, HTML, attachments metadata (with indexes)  |
 | `search_messages` | IMAP `SEARCH` by `from`, `to`, `subject`, `body`, date ranges, unread   |
+| `get_attachment`  | Download an attachment by index; images come back as image content, everything else as an embedded resource blob |
 
 ### Sending
 
 | Tool              | Purpose                                                                 |
 | ----------------- | ----------------------------------------------------------------------- |
-| `send_message`    | Send via the account's SMTP, optionally appending the HTML signature    |
-| `reply_message`   | Reply preserving `In-Reply-To` / `References`, with optional quoting    |
+| `send_message`    | Send via the account's SMTP, optionally appending the HTML signature; accepts base64 attachments |
+| `reply_message`   | Reply preserving `In-Reply-To` / `References`, with optional quoting; accepts base64 attachments |
 
 ### Flags & triage
 
@@ -278,7 +279,6 @@ oauth_tokens(id, access_token_hash UNIQUE, refresh_token_hash,
 
 - XOAUTH2 for Gmail / Outlook (password/app-password only for now)
 - IMAP IDLE / push notifications
-- Binary attachment download via MCP (v1 lists names/sizes only)
 - Master-key rotation flow (schema supports it, tool not written yet)
 - Per-user rate limiting on MCP tools
 
