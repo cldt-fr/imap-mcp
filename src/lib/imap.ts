@@ -202,6 +202,181 @@ export interface AttachmentContent {
   base64: string;
 }
 
+export interface ThreadOptions {
+  maxMessages?: number;
+  crossFolder?: boolean;
+}
+
+export type ThreadMessage = FullMessage & { folder: string };
+
+export interface ThreadFetchResult {
+  strategy: "gmail-thrid" | "references";
+  threadId?: string | null;
+  messages: ThreadMessage[];
+  truncated: boolean;
+}
+
+export async function getThread(
+  acc: AccountLike,
+  folder: string,
+  uid: number,
+  opts: ThreadOptions = {},
+): Promise<ThreadFetchResult | null> {
+  const max = Math.max(1, Math.min(opts.maxMessages ?? 50, 200));
+
+  return withImap(acc, async (client) => {
+    const folders = opts.crossFolder
+      ? (await client.list()).map((f) => f.path)
+      : [folder];
+
+    // 1) Anchor the thread from the target message: envelope + Gmail thread id
+    //    if the server supports X-GM-EXT, + parsed References from the source.
+    let anchorEnv: FetchMessageObject | null = null;
+    let anchorReferences: string[] = [];
+    let threadId: string | null = null;
+    {
+      const lock = await client.getMailboxLock(folder);
+      try {
+        const fetched = await client.fetchOne(
+          String(uid),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { envelope: true, threadId: true, source: true } as any,
+          { uid: true },
+        );
+        anchorEnv = fetched || null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        threadId = (anchorEnv as any)?.threadId ?? null;
+        if (anchorEnv?.source) {
+          const parsed = await simpleParser(anchorEnv.source);
+          anchorReferences = Array.isArray(parsed.references)
+            ? parsed.references
+            : parsed.references
+              ? [parsed.references]
+              : [];
+        }
+      } finally {
+        lock.release();
+      }
+    }
+    if (!anchorEnv) return null;
+
+    // Deduplicate messages across folders by Message-ID (preferred) or (folder,uid).
+    type Entry = { folder: string; uid: number };
+    const collected = new Map<string, Entry>();
+    const keyFor = (f: string, u: number) => `${f}#${u}`;
+    collected.set(keyFor(folder, uid), { folder, uid });
+
+    async function searchIn(f: string, query: Record<string, unknown>) {
+      const lock = await client.getMailboxLock(f);
+      try {
+        const uids = (await client.search(query, { uid: true })) as
+          | number[]
+          | false;
+        if (Array.isArray(uids)) {
+          for (const u of uids) collected.set(keyFor(f, u), { folder: f, uid: u });
+        }
+      } catch {
+        /* folder not accessible / search unsupported — skip silently */
+      } finally {
+        lock.release();
+      }
+    }
+
+    // 2a) Gmail fast-path: let the server group by X-GM-THRID.
+    if (threadId) {
+      for (const f of folders) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await searchIn(f, { threadId } as any);
+      }
+    }
+
+    // 2b) References-chain fallback — also runs alongside Gmail to catch edge
+    //     cases where a message in the thread sits in a non-indexed label.
+    const seedIds = new Set<string>();
+    if (anchorEnv.envelope?.messageId) seedIds.add(anchorEnv.envelope.messageId);
+    if (anchorEnv.envelope?.inReplyTo) seedIds.add(anchorEnv.envelope.inReplyTo);
+    for (const r of anchorReferences) seedIds.add(r);
+
+    for (const id of seedIds) {
+      for (const f of folders) {
+        await searchIn(f, { header: ["message-id", id] });
+        await searchIn(f, { header: ["references", id] });
+      }
+    }
+
+    // 3) Hydrate each entry via the same IMAP connection (no per-message
+    //    reconnect). We fetch source once and parse locally.
+    const entries = Array.from(collected.values());
+    const truncated = entries.length > max;
+    const sliced = entries.slice(0, max);
+    const messages: ThreadMessage[] = [];
+    for (const e of sliced) {
+      const lock = await client.getMailboxLock(e.folder);
+      try {
+        const fetched = await client.fetchOne(
+          String(e.uid),
+          { envelope: true, source: true },
+          { uid: true },
+        );
+        const msg = fetched || null;
+        if (!msg?.source) continue;
+        const parsed: ParsedMail = await simpleParser(msg.source);
+        messages.push({
+          folder: e.folder,
+          uid: msg.uid,
+          subject: parsed.subject ?? null,
+          from: parsed.from?.text ?? null,
+          to: addrList(parsed.to),
+          cc: addrList(parsed.cc),
+          date: parsed.date ? parsed.date.toISOString() : null,
+          text: parsed.text ?? null,
+          html: typeof parsed.html === "string" ? parsed.html : null,
+          messageId: parsed.messageId ?? null,
+          inReplyTo: parsed.inReplyTo ?? null,
+          references: Array.isArray(parsed.references)
+            ? parsed.references
+            : parsed.references
+              ? [parsed.references]
+              : [],
+          attachments: (parsed.attachments ?? []).map((a, index) => ({
+            index,
+            filename: a.filename ?? null,
+            size: a.size ?? 0,
+            contentType: a.contentType ?? "application/octet-stream",
+            contentId: a.contentId ?? null,
+            isInline: a.contentDisposition === "inline",
+          })),
+        });
+      } finally {
+        lock.release();
+      }
+    }
+
+    // Deduplicate by Message-ID (same message cross-referenced in multiple
+    // folders, e.g. INBOX + [Gmail]/All Mail) — keep the first occurrence.
+    const seenIds = new Set<string>();
+    const deduped: ThreadMessage[] = [];
+    for (const m of messages) {
+      if (m.messageId && seenIds.has(m.messageId)) continue;
+      if (m.messageId) seenIds.add(m.messageId);
+      deduped.push(m);
+    }
+
+    deduped.sort((a, b) => {
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      return da - db;
+    });
+
+    return {
+      strategy: threadId ? "gmail-thrid" : "references",
+      threadId,
+      messages: deduped,
+      truncated,
+    };
+  });
+}
+
 export async function getAttachment(
   acc: AccountLike,
   folder: string,

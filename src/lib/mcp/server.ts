@@ -9,6 +9,7 @@ import {
   deleteMessages,
   getAttachment,
   getMessage,
+  getThread,
   listFolders,
   listMessages,
   moveMessages,
@@ -353,6 +354,63 @@ export function buildMcpServer(ctx: McpContext): McpServer {
           attachments: toOutgoing(args.attachments),
         });
         return jsonResult(result);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_thread",
+    {
+      title: "Get full conversation thread",
+      description:
+        "Return every message in the same conversation as the anchor message, sorted oldest → newest. Uses Gmail's X-GM-THRID when available (fast, reliable) and falls back to walking the RFC 5322 References / Message-ID chain for generic IMAP. By default searches only the given folder; pass cross_folder=true to scan every mailbox (useful to pick up Sent replies in non-Gmail accounts — on Gmail the All Mail label already contains everything).",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        folder: z.string(),
+        uid: z.number().int().positive(),
+        cross_folder: z
+          .boolean()
+          .default(false)
+          .describe("Search all mailboxes on the server instead of just the current folder."),
+        max_messages: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .default(50)
+          .describe("Cap on the number of messages returned."),
+      },
+    },
+    async ({ account_id, folder, uid, cross_folder, max_messages }) => {
+      try {
+        const acc = await requireAccount(ctx.userId, account_id);
+        const thread = await getThread(acc, folder, uid, {
+          crossFolder: cross_folder,
+          maxMessages: max_messages,
+        });
+        if (!thread) return errorResult(new Error("anchor message not found"));
+        const enriched = {
+          strategy: thread.strategy,
+          threadId: thread.threadId,
+          truncated: thread.truncated,
+          count: thread.messages.length,
+          messages: thread.messages.map((m) => ({
+            ...m,
+            attachments: m.attachments.map((a) => ({
+              ...a,
+              ...attachmentDownloadUrl(
+                ctx.userId,
+                account_id,
+                m.folder,
+                m.uid,
+                a.index,
+              ),
+            })),
+          })),
+        };
+        return jsonResult(enriched);
       } catch (e) {
         return errorResult(e);
       }
