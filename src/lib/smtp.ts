@@ -1,12 +1,33 @@
 import nodemailer from "nodemailer";
+import MailComposer from "nodemailer/lib/mail-composer";
 import DOMPurify from "isomorphic-dompurify";
 import { decrypt } from "@/lib/crypto";
 import type { MailAccount } from "@/lib/db/schema";
+import { saveToSentFolder, type AccountLike } from "@/lib/imap";
 
 export type SmtpAccountLike = Pick<
   MailAccount,
-  "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPasswordEnc" | "email" | "fromName" | "signatureHtml"
->;
+  | "smtpHost"
+  | "smtpPort"
+  | "smtpSecure"
+  | "smtpUser"
+  | "smtpPasswordEnc"
+  | "email"
+  | "fromName"
+  | "signatureHtml"
+> &
+  AccountLike;
+
+/**
+ * Providers whose SMTP transparently writes the message to the user's Sent
+ * folder — appending via IMAP on top would create duplicates. Every other
+ * provider (Outlook, iCloud, Fastmail, OVH, self-hosted…) requires the
+ * IMAP APPEND to make the sent message visible in the Sent folder.
+ */
+function smtpAutoSavesToSent(host: string): boolean {
+  const h = host.toLowerCase();
+  return h === "smtp.gmail.com" || h.endsWith(".gmail.com");
+}
 
 function buildFromAddress(acc: SmtpAccountLike): string | { name: string; address: string } {
   const name = acc.fromName?.trim();
@@ -54,12 +75,25 @@ export interface SendMailInput {
   references?: string[];
   includeSignature?: boolean;
   attachments?: OutgoingAttachment[];
+  /**
+   * Override the automatic Sent-folder detection. true → always APPEND,
+   * false → never APPEND. When omitted, we APPEND for every provider except
+   * Gmail (which saves to Sent through its SMTP on its own).
+   */
+  saveToSent?: boolean;
 }
 
 export interface SendMailResult {
   messageId: string;
   accepted: string[];
   rejected: string[];
+  savedToSent: {
+    attempted: boolean;
+    ok: boolean;
+    folder?: string | null;
+    error?: string;
+    skippedReason?: string;
+  };
 }
 
 function safeSignature(html: string): string {
@@ -98,6 +132,26 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function buildRawMime(
+  mailOptions: Parameters<typeof nodemailer.createTransport>[0] extends never
+    ? never
+    : Parameters<nodemailer.Transporter["sendMail"]>[0],
+): Promise<{ raw: Buffer; envelope: nodemailer.SendMailOptions["envelope"]; messageId: string }> {
+  return new Promise((resolve, reject) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const composer = new MailComposer(mailOptions as any);
+    const node = composer.compile();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const envelope = (node as any).getEnvelope();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const messageId: string = (node as any).messageId();
+    node.build((err: Error | null, buf: Buffer) => {
+      if (err) reject(err);
+      else resolve({ raw: buf, envelope, messageId });
+    });
+  });
+}
+
 export async function sendMail(
   acc: SmtpAccountLike,
   input: SendMailInput,
@@ -105,7 +159,7 @@ export async function sendMail(
   const transport = buildTransport(acc);
   try {
     const { text, html } = appendSignature(acc, input);
-    const info = await transport.sendMail({
+    const mailOptions: nodemailer.SendMailOptions = {
       from: buildFromAddress(acc),
       to: input.to.join(", "),
       cc: input.cc?.join(", "),
@@ -122,11 +176,54 @@ export async function sendMail(
         cid: a.contentId,
         contentDisposition: a.isInline ? "inline" : "attachment",
       })),
-    });
+    };
+
+    // Compose the raw MIME once so we can both feed it to SMTP and APPEND
+    // the exact same bytes to IMAP — guarantees the Sent copy matches what
+    // the recipient got on the wire (same Message-ID, same Date, same
+    // multipart boundaries).
+    const { raw, envelope, messageId } = await buildRawMime(mailOptions);
+
+    const info = await transport.sendMail({ envelope, raw, messageId });
+
+    const shouldAppend =
+      input.saveToSent === true
+        ? true
+        : input.saveToSent === false
+          ? false
+          : !smtpAutoSavesToSent(acc.smtpHost);
+
+    let savedToSent: SendMailResult["savedToSent"] = {
+      attempted: false,
+      ok: false,
+    };
+    if (shouldAppend) {
+      const r = await saveToSentFolder(acc, raw);
+      savedToSent = {
+        attempted: true,
+        ok: r.ok,
+        folder: r.folder,
+        error: r.error,
+      };
+    } else if (smtpAutoSavesToSent(acc.smtpHost)) {
+      savedToSent = {
+        attempted: false,
+        ok: true,
+        skippedReason: "provider auto-saves to Sent via SMTP (Gmail)",
+      };
+    } else {
+      savedToSent = {
+        attempted: false,
+        ok: false,
+        skippedReason: "saveToSent=false",
+      };
+    }
+
     return {
-      messageId: info.messageId,
+      messageId: info.messageId ?? messageId,
       accepted: (info.accepted as string[]) ?? [],
       rejected: (info.rejected as string[]) ?? [],
+      savedToSent,
     };
   } finally {
     transport.close();

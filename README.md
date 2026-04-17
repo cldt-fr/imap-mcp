@@ -215,8 +215,8 @@ missing, install it in the container: `docker compose exec app npm i esbuild --n
 
 | Tool              | Purpose                                                                 |
 | ----------------- | ----------------------------------------------------------------------- |
-| `send_message`    | Send via the account's SMTP, optionally appending the HTML signature; accepts base64 attachments |
-| `reply_message`   | Reply preserving `In-Reply-To` / `References`, with optional quoting; accepts base64 attachments |
+| `send_message`    | Send via the account's SMTP, appending the HTML signature and base64 attachments; the sent copy is IMAP-appended to the Sent folder (skipped on Gmail, which saves it automatically). |
+| `reply_message`   | Reply preserving `In-Reply-To` / `References`; same Sent-folder behavior as `send_message`. |
 
 ### Flags & triage
 

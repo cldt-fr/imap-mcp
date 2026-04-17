@@ -531,6 +531,41 @@ export async function copyMessages(
   });
 }
 
+async function findSentFolder(client: ImapFlow): Promise<string | null> {
+  const all = await client.list();
+  const byUse = all.find((f) => f.specialUse === "\\Sent");
+  if (byUse) return byUse.path;
+  const byName = all.find((f) =>
+    /^(sent|sent items|sent mail|envoy[eé]s?|éléments envoyés|gesendet|posta inviata|inviati|enviad[oa]s?)$/i.test(
+      f.name,
+    ),
+  );
+  return byName?.path ?? null;
+}
+
+export interface SaveSentResult {
+  ok: boolean;
+  folder?: string | null;
+  skipped?: boolean;
+  error?: string;
+}
+
+export async function saveToSentFolder(
+  acc: AccountLike,
+  rawMime: Buffer,
+): Promise<SaveSentResult> {
+  try {
+    return await withImap(acc, async (client) => {
+      const sent = await findSentFolder(client);
+      if (!sent) return { ok: false, folder: null, error: "no Sent folder detected" };
+      await client.append(sent, rawMime, ["\\Seen"]);
+      return { ok: true, folder: sent };
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 async function findTrashFolder(client: ImapFlow): Promise<string | null> {
   const all = await client.list();
   const byUse = all.find((f) => f.specialUse === "\\Trash");

@@ -249,7 +249,8 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     "send_message",
     {
       title: "Send email",
-      description: "Send an email through the account's SMTP. The HTML signature is appended when include_signature=true. File attachments are accepted as base64.",
+      description:
+        "Send an email through the account's SMTP. The HTML signature is appended when include_signature=true. File attachments are accepted as base64. A copy of the sent message is IMAP-appended to the Sent folder for every provider except Gmail (which already saves to Sent through SMTP).",
       inputSchema: {
         account_id: z.string().uuid(),
         to: z.array(z.string().email()).min(1),
@@ -290,7 +291,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       title: "Reply to message",
       description:
-        "Reply to an existing message (preserves In-Reply-To and References, quotes the original when quote_original=true).",
+        "Reply to an existing message (preserves In-Reply-To and References, quotes the original when quote_original=true). The reply is IMAP-appended to Sent (skipped on Gmail).",
       inputSchema: {
         account_id: z.string().uuid(),
         folder: z.string(),
