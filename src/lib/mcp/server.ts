@@ -1,7 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpContext } from "./context";
-import { listUserAccounts, requireAccount } from "./context";
+import {
+  listUserAccounts,
+  listUserCalendarAccounts,
+  requireAccount,
+  requireCalendarAccount,
+} from "./context";
 import {
   copyMessages,
   createFolder,
@@ -21,6 +26,15 @@ import type { OutgoingAttachment } from "@/lib/smtp";
 import { sendMail } from "@/lib/smtp";
 import { signAttachmentToken } from "@/lib/auth/attachmentToken";
 import { appBaseUrl } from "@/lib/auth/oauth";
+import {
+  createEvent,
+  deleteEvent,
+  findFreeSlots,
+  getEvent,
+  listCalendars,
+  listEvents,
+  updateEvent,
+} from "@/lib/caldav";
 
 function attachmentDownloadUrl(
   userId: string,
@@ -103,7 +117,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     {
       capabilities: { tools: {} },
       instructions:
-        "Access the current user's registered IMAP email accounts. Call list_accounts first to discover account IDs — the response also carries each account's `writingStyleInstructions`, a pre-rendered directive you MUST follow verbatim when drafting via send_message or reply_message (it covers language, tone, formality, greeting, sign-off, length, emoji policy and custom user rules). IMAP folders are identified by their path; messages by their UID.",
+        "This server gives access to the current user's registered IMAP email accounts AND their CalDAV calendar accounts.\n\nEMAIL — Call list_accounts first to discover email account IDs; the response carries each account's `writingStyleInstructions`, a pre-rendered directive you MUST follow verbatim when drafting via send_message or reply_message (it covers language, tone, formality, greeting, sign-off, length, emoji policy and custom user rules). IMAP folders are identified by their path; messages by their UID.\n\nCALENDAR — Call list_calendar_accounts to discover calendar account IDs (independent of email accounts), then list_calendars to find calendar collection URLs. Events use ETag-based optimistic concurrency: keep the `etag` returned by list_events / get_event and pass it to update_event / delete_event — a stale etag returns 412 Precondition Failed and you should re-fetch.\n\nTIMEZONES — Every event response carries `start`/`end` (UTC ISO), `startLocal`/`endLocal` (wall-clock when a TZID is set) and `tz` (IANA name, e.g. \"Europe/Paris\", or null when stored as UTC). When creating/updating events, pass `tz` to anchor the event to a real timezone — recurring events then survive DST correctly. For `start`/`end`, pass either a floating local time like \"2026-05-01T10:00:00\" interpreted in the given `tz`, or a zoned/UTC ISO (\"…Z\" / \"…+02:00\") which will be converted to the tz local time. Omit `tz` to store the event in UTC. Recurring events return their raw RRULE; pass expand_recurring=true on list_events to expand individual occurrences within the requested time range.",
     },
   );
 
@@ -766,6 +780,318 @@ export function buildMcpServer(ctx: McpContext): McpServer {
         const acc = await requireAccount(ctx.userId, account_id);
         const res = await deleteFolder(acc, path);
         return jsonResult(res);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Calendar (CalDAV) tools
+  // ──────────────────────────────────────────────────────────────────────────
+
+  server.registerTool(
+    "list_calendar_accounts",
+    {
+      title: "List calendar accounts",
+      description:
+        "List the CalDAV calendar accounts configured by the current user. These are independent of email accounts.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const rows = await listUserCalendarAccounts(ctx.userId);
+        return jsonResult({ calendar_accounts: rows });
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "list_calendars",
+    {
+      title: "List calendars",
+      description:
+        "List the calendar collections available on a CalDAV account. Use the returned `url` as `calendar_url` in subsequent tools.",
+      inputSchema: {
+        account_id: z
+          .string()
+          .uuid()
+          .describe("Calendar account ID returned by list_calendar_accounts"),
+      },
+    },
+    async ({ account_id }) => {
+      try {
+        const acc = await requireCalendarAccount(ctx.userId, account_id);
+        const calendars = await listCalendars(acc);
+        return jsonResult({ calendars });
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "list_events",
+    {
+      title: "List calendar events",
+      description:
+        "List events in a calendar over a time window. Returns each event's `url` and `etag` (needed for update_event / delete_event). Recurring events are returned once (the master) with their raw RRULE; pass expand_recurring=true to also receive an `occurrences[]` array expanded within the requested range.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        calendar_url: z
+          .string()
+          .url()
+          .describe("Calendar collection URL from list_calendars"),
+        time_min: z.string().describe("ISO 8601 datetime — lower bound (inclusive)"),
+        time_max: z.string().describe("ISO 8601 datetime — upper bound (exclusive)"),
+        expand_recurring: z.boolean().default(false),
+      },
+    },
+    async ({ account_id, calendar_url, time_min, time_max, expand_recurring }) => {
+      try {
+        const acc = await requireCalendarAccount(ctx.userId, account_id);
+        const tMin = parseDate(time_min);
+        const tMax = parseDate(time_max);
+        if (!tMin || !tMax) throw new Error("time_min and time_max are required");
+        const result = await listEvents(acc, {
+          calendarUrl: calendar_url,
+          timeMin: tMin,
+          timeMax: tMax,
+          expandRecurring: expand_recurring,
+        });
+        return jsonResult(result);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "get_event",
+    {
+      title: "Get a single event",
+      description:
+        "Fetch a single event by its calendar URL + event URL. Returns the parsed event plus the raw iCalendar string.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        calendar_url: z.string().url(),
+        event_url: z.string().url(),
+      },
+    },
+    async ({ account_id, calendar_url, event_url }) => {
+      try {
+        const acc = await requireCalendarAccount(ctx.userId, account_id);
+        const r = await getEvent(acc, calendar_url, event_url);
+        if (!r) return errorResult(new Error("event not found"));
+        return jsonResult(r);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  const attendeeInputSchema = z.object({
+    email: z.string().email(),
+    name: z.string().optional(),
+    role: z
+      .enum(["REQ-PARTICIPANT", "OPT-PARTICIPANT", "NON-PARTICIPANT", "CHAIR"])
+      .optional(),
+    rsvp: z.boolean().optional(),
+  });
+
+  const reminderInputSchema = z.object({
+    minutes_before: z.number().int().min(0).max(40320),
+    action: z.enum(["DISPLAY", "EMAIL", "AUDIO"]).optional(),
+  });
+
+  server.registerTool(
+    "create_event",
+    {
+      title: "Create a calendar event",
+      description:
+        "Create a new event. When `tz` (IANA name) is provided, `start`/`end` may be a floating local time (\"2026-05-01T10:00:00\") interpreted in `tz`, or a zoned/UTC ISO that gets converted to `tz` local time; the event is stored with TZID, which keeps recurring events DST-correct. Omit `tz` to store in UTC (`Z`). For all_day=true, pass YYYY-MM-DD strings. Returns the new event `url` and `etag`.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        calendar_url: z.string().url(),
+        summary: z.string().min(1),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        start: z
+          .string()
+          .describe(
+            "ISO 8601 datetime (floating, zoned or UTC), or YYYY-MM-DD when all_day",
+          ),
+        end: z
+          .string()
+          .describe(
+            "ISO 8601 datetime (floating, zoned or UTC), or YYYY-MM-DD when all_day",
+          ),
+        all_day: z.boolean().default(false),
+        tz: z
+          .string()
+          .optional()
+          .describe(
+            "IANA timezone name (e.g. \"Europe/Paris\"). When set, the event is stored with TZID and recurrences stay correct across DST.",
+          ),
+        attendees: z.array(attendeeInputSchema).optional(),
+        organizer_email: z.string().email().optional(),
+        rrule: z
+          .string()
+          .optional()
+          .describe(
+            "RFC 5545 RRULE without the leading 'RRULE:' (e.g. 'FREQ=WEEKLY;BYDAY=MO,WE')",
+          ),
+        reminders: z.array(reminderInputSchema).optional(),
+        status: z.enum(["TENTATIVE", "CONFIRMED", "CANCELLED"]).optional(),
+      },
+    },
+    async (args) => {
+      try {
+        const acc = await requireCalendarAccount(ctx.userId, args.account_id);
+        const result = await createEvent(acc, args.calendar_url, {
+          summary: args.summary,
+          description: args.description,
+          location: args.location,
+          start: args.start,
+          end: args.end,
+          allDay: args.all_day,
+          tz: args.tz,
+          attendees: args.attendees,
+          organizerEmail: args.organizer_email,
+          rrule: args.rrule,
+          reminders: args.reminders?.map((r) => ({
+            minutesBefore: r.minutes_before,
+            action: r.action,
+          })),
+          status: args.status,
+        });
+        return jsonResult(result);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "update_event",
+    {
+      title: "Update a calendar event",
+      description:
+        "Patch an existing event. The `etag` is REQUIRED — get it from list_events or get_event. A stale etag returns a 412 error; in that case re-fetch the event and retry. Only the fields you pass are modified; pass null to description/location/rrule to clear them. `tz` follows the same semantics as create_event — pass an IANA name to anchor the event to a timezone, pass null to switch to UTC, or omit to keep the existing TZID. Omitting `start`/`end` while changing `tz` re-anchors the existing wall-clock to the new zone.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        calendar_url: z.string().url(),
+        event_url: z.string().url(),
+        etag: z.string().min(1),
+        summary: z.string().optional(),
+        description: z.string().nullable().optional(),
+        location: z.string().nullable().optional(),
+        start: z.string().optional(),
+        end: z.string().optional(),
+        all_day: z.boolean().optional(),
+        tz: z.string().nullable().optional(),
+        attendees: z.array(attendeeInputSchema).optional(),
+        rrule: z.string().nullable().optional(),
+        status: z.enum(["TENTATIVE", "CONFIRMED", "CANCELLED"]).optional(),
+      },
+    },
+    async (args) => {
+      try {
+        const acc = await requireCalendarAccount(ctx.userId, args.account_id);
+        const result = await updateEvent(acc, args.calendar_url, args.event_url, args.etag, {
+          summary: args.summary,
+          description: args.description,
+          location: args.location,
+          start: args.start,
+          end: args.end,
+          allDay: args.all_day,
+          tz: args.tz,
+          attendees: args.attendees,
+          rrule: args.rrule,
+          status: args.status,
+        });
+        return jsonResult(result);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "delete_event",
+    {
+      title: "Delete a calendar event",
+      description:
+        "Delete an event by its URL. Pass `etag` for safe optimistic-concurrency deletion (a stale etag returns 412); omit it to force-delete.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        event_url: z.string().url(),
+        etag: z.string().optional(),
+      },
+    },
+    async ({ account_id, event_url, etag }) => {
+      try {
+        const acc = await requireCalendarAccount(ctx.userId, account_id);
+        const result = await deleteEvent(acc, event_url, etag);
+        return jsonResult(result);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "find_free_slots",
+    {
+      title: "Find free time slots",
+      description:
+        "Find free time slots across one or more calendars within a window. Recurring events are expanded automatically. Optionally restrict to working hours.",
+      inputSchema: {
+        account_id: z.string().uuid(),
+        calendar_urls: z.array(z.string().url()).min(1),
+        time_min: z.string(),
+        time_max: z.string(),
+        duration_minutes: z.number().int().min(5).max(60 * 24),
+        work_hours: z
+          .object({
+            start: z
+              .string()
+              .regex(/^\d{2}:\d{2}$/)
+              .describe("HH:MM wall-clock in `tz` (UTC if tz omitted)"),
+            end: z
+              .string()
+              .regex(/^\d{2}:\d{2}$/)
+              .describe("HH:MM wall-clock in `tz` (UTC if tz omitted)"),
+            tz: z
+              .string()
+              .optional()
+              .describe(
+                "IANA timezone name. Working hours are evaluated as wall-clock in this zone, so they stay aligned across DST.",
+              ),
+            days: z
+              .array(z.number().int().min(0).max(6))
+              .optional()
+              .describe("0=Sunday … 6=Saturday. Defaults to Mon-Fri."),
+          })
+          .optional(),
+      },
+    },
+    async (args) => {
+      try {
+        const acc = await requireCalendarAccount(ctx.userId, args.account_id);
+        const tMin = parseDate(args.time_min);
+        const tMax = parseDate(args.time_max);
+        if (!tMin || !tMax) throw new Error("time_min and time_max are required");
+        const slots = await findFreeSlots(acc, {
+          calendarUrls: args.calendar_urls,
+          timeMin: tMin,
+          timeMax: tMax,
+          durationMinutes: args.duration_minutes,
+          workHours: args.work_hours,
+        });
+        return jsonResult({ free_slots: slots });
       } catch (e) {
         return errorResult(e);
       }

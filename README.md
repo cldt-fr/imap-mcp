@@ -1,6 +1,6 @@
 # imap-mcp
 
-> Self-hosted remote **MCP server** that lets an AI (Claude, etc.) read, search and send email through **multiple IMAP/SMTP accounts**, authenticated via **Clerk**.
+> Self-hosted remote **MCP server** that lets an AI (Claude, etc.) read, search and send email through **multiple IMAP/SMTP accounts**, and read/write the user's calendar through **CalDAV** — authenticated via **Clerk**.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Built with Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org)
@@ -13,14 +13,14 @@
 
 ## Why
 
-MCP clients (Claude Desktop, Claude.ai, …) can talk to remote servers, but none of them ship with a way to plug **your own** IMAP/SMTP accounts securely. Shoving raw credentials into a client config or shipping them to a third-party SaaS is a non-starter for anything serious.
+MCP clients (Claude Desktop, Claude.ai, …) can talk to remote servers, but none of them ship with a way to plug **your own** IMAP/SMTP and CalDAV accounts securely. Shoving raw credentials into a client config or shipping them to a third-party SaaS is a non-starter for anything serious.
 
 `imap-mcp` is a tiny, self-hosted Next.js app that:
 
 - authenticates **humans** with Clerk (you get a real sign-in UI, MFA, SSO, whatever Clerk supports),
 - authenticates **MCP clients** with OAuth 2.1 (PKCE + Dynamic Client Registration),
-- stores an **arbitrary number of IMAP/SMTP accounts** per user, encrypted at rest (AES-256-GCM),
-- exposes those accounts to any MCP client through a clean set of tools.
+- stores an **arbitrary number of IMAP/SMTP and CalDAV accounts** per user, encrypted at rest (AES-256-GCM),
+- exposes those accounts to any MCP client through a clean set of tools — emails *and* calendar.
 
 One container, one domain, your server, your keys.
 
@@ -29,10 +29,11 @@ One container, one domain, your server, your keys.
 - 🔐 **Clerk** for user auth — you manage users, not us
 - 🔑 **OAuth 2.1** (Authorization Code + PKCE) with **Dynamic Client Registration** (RFC 7591)
 - 📬 Unlimited IMAP/SMTP accounts per user, each with its own **HTML signature** (Tiptap editor, DOMPurify-sanitized)
+- 🗓️ Unlimited **CalDAV calendar accounts** per user — list/read/create/update/delete events and find free slots, fully timezone-aware (TZID + DST-correct recurrences)
 - 🔒 Credentials encrypted with **AES-256-GCM**; OAuth tokens stored as **SHA-256** hashes only
-- 🧰 **19 MCP tools** across four groups: reading (`list_accounts`, `list_folders`, `list_messages`, `get_message`, `get_thread`, `search_messages`, `get_attachment`), sending (`send_message`, `reply_message`), flags & triage (`mark_read`, `mark_unread`, `flag_messages`, `unflag_messages`, `set_flags`), and mailbox ops (`move_messages`, `copy_messages`, `delete_messages`, `create_folder`, `rename_folder`, `delete_folder`)
-- 🧪 **Test connection from the list** (IMAP `NOOP` + SMTP `VERIFY`) with per-account status badges and actionable error hints
-- ⚡ **Provider presets** on account creation: Gmail, Outlook / Microsoft 365, iCloud, Yahoo, Fastmail, OVH — pre-fills hosts, ports and SSL flags
+- 🧰 **27 MCP tools**: 19 email tools (list/read/search/send/reply/flag/move/folder ops) + 8 calendar tools (`list_calendar_accounts`, `list_calendars`, `list_events`, `get_event`, `create_event`, `update_event`, `delete_event`, `find_free_slots`)
+- 🧪 **Test connection from the list** (IMAP `NOOP` + SMTP `VERIFY`, CalDAV principal-discovery) with per-account status badges and actionable error hints
+- ⚡ **Provider presets** on account creation: Gmail, Outlook / Microsoft 365, iCloud, Yahoo, Fastmail, OVH for email — iCloud, Fastmail, Nextcloud, OVH, Baïkal/generic for calendars
 - ⚠️ **Live port/SSL consistency warnings** — catches the `wrong version number` trap before it happens
 - 🎯 **`/connect` guide** with tabbed, copy-to-clipboard setup instructions for **Claude.ai** (web), **Claude Desktop** and **Claude Code**
 - 🎨 Polished UI: light/dark, hero homepage, status badges, shadows, focus rings
@@ -66,18 +67,20 @@ Human auth at the `/authorize` endpoint is delegated to the active Clerk session
 ## Stack
 
 | Concern      | Choice                                                  |
-| ------------ | ------------------------------------------------------- |
-| Framework    | Next.js 15 (App Router), React 19                       |
-| Language     | TypeScript (strict)                                     |
-| Human auth   | [`@clerk/nextjs`](https://clerk.com)                    |
-| Database     | PostgreSQL 16                                           |
-| ORM          | [`drizzle-orm`](https://orm.drizzle.team)               |
-| IMAP client  | [`imapflow`](https://github.com/postalsys/imapflow)     |
-| SMTP client  | [`nodemailer`](https://nodemailer.com)                  |
-| MCP SDK      | [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) |
-| HTML editor  | [Tiptap](https://tiptap.dev)                            |
-| Sanitizer    | [`isomorphic-dompurify`](https://github.com/kkomelin/isomorphic-dompurify) |
-| Transport    | **Streamable HTTP** (MCP spec 2025-06-18)               |
+| -------------- | ------------------------------------------------------- |
+| Framework      | Next.js 15 (App Router), React 19                       |
+| Language       | TypeScript (strict)                                     |
+| Human auth     | [`@clerk/nextjs`](https://clerk.com)                    |
+| Database       | PostgreSQL 16                                           |
+| ORM            | [`drizzle-orm`](https://orm.drizzle.team)               |
+| IMAP client    | [`imapflow`](https://github.com/postalsys/imapflow)     |
+| SMTP client    | [`nodemailer`](https://nodemailer.com)                  |
+| CalDAV client  | [`tsdav`](https://github.com/natelindev/tsdav)          |
+| iCalendar      | [`ical.js`](https://github.com/kewisch/ical.js) (Mozilla) |
+| MCP SDK        | [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) |
+| HTML editor    | [Tiptap](https://tiptap.dev)                            |
+| Sanitizer      | [`isomorphic-dompurify`](https://github.com/kkomelin/isomorphic-dompurify) |
+| Transport      | **Streamable HTTP** (MCP spec 2025-06-18)               |
 
 ## Getting started
 
@@ -118,6 +121,13 @@ App is now available at `http://localhost:3000`.
 4. Gmail / Google Workspace: use an **app password** (`https://myaccount.google.com/apppasswords`).
 5. Optionally paste/edit an HTML signature.
 6. Save, then click **Test** on the account card. Both IMAP and SMTP must come back green.
+
+### 3b. Add a calendar account (optional)
+
+1. Go to **`/calendars/new`**.
+2. Pick a preset (iCloud, Fastmail, Nextcloud, OVH, Baïkal/generic) to fill the CalDAV base URL — `tsdav` auto-discovers the principal and home calendars from there.
+3. Use a provider **app password** (Apple, Fastmail, Nextcloud all expose one). Google Calendar **is not supported in v1** because Google requires OAuth 2.0 for CalDAV — see *Out of scope* below.
+4. Save, then click **Test connection**: the badge shows the number of calendars discovered.
 
 ### 4. Connect your MCP client
 
@@ -239,7 +249,35 @@ missing, install it in the container: `docker compose exec app npm i esbuild --n
 | `rename_folder`   | Rename or reparent a mailbox                                            |
 | `delete_folder`   | Delete a mailbox (INBOX is rejected)                                    |
 
+### Calendar (CalDAV)
+
+| Tool                     | Purpose                                                                 |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `list_calendar_accounts` | List the user's CalDAV accounts (independent of email accounts)         |
+| `list_calendars`         | Discover the calendar collections of an account (returns `url` for each)|
+| `list_events`            | Events in a window. Returns `etag` for optimistic concurrency, `tz`, `startLocal`/`endLocal` and the raw `RRULE`. Pass `expand_recurring=true` to also receive expanded `occurrences[]`. |
+| `get_event`              | Fetch a single event (parsed + raw iCal)                                |
+| `create_event`           | Create an event. Optional `tz` (IANA name) anchors it to a real timezone — recurrences then survive DST correctly. |
+| `update_event`           | Patch an event. Requires the `etag` from list/get; a stale etag returns 412. `tz=null` re-anchors to UTC. |
+| `delete_event`           | Delete an event by URL. Pass `etag` for safe optimistic deletion.       |
+| `find_free_slots`        | Find free intervals across one or more calendars, with optional working-hours filter (DST-correct in the working-hours tz). |
+
 The authenticated user's ID is always injected from the OAuth token — tools never accept it as an argument, so a client cannot impersonate another user.
+
+### Timezones (calendar)
+
+Every event response carries:
+
+- `start` / `end` — UTC ISO 8601 (always present).
+- `startLocal` / `endLocal` — wall-clock string when the event has a `TZID`, otherwise `null`.
+- `tz` — IANA timezone name (e.g. `Europe/Paris`) when the event has a `TZID`, otherwise `null` (UTC-stored event).
+
+When creating or updating an event you can:
+
+- **Omit `tz`** → the event is stored in UTC (`Z`). Simplest, correct for one-off events whose moment-in-time is what matters.
+- **Pass `tz` (IANA name)** → the event is stored with `DTSTART;TZID=<iana>:<local-time>`. `start`/`end` may be either a *floating* local time (`"2026-05-01T10:00:00"`, interpreted in `tz`) or a zoned/UTC ISO (`"…Z"` or `"…+02:00"`, converted to `tz` local time before storage). This is what you want for recurring events ("every Tuesday at 10:00 Paris time"): each occurrence is reconverted from local to UTC independently, so DST transitions stay correct.
+
+Internals: `src/lib/caldav-tz.ts` uses `Intl.DateTimeFormat` to compute the offset of any IANA zone at any UTC instant — no `tzdata` bundle, no ical.js `TimezoneService` registration. The CalDAV write path emits `TZID=<iana>` without an inline `VTIMEZONE` block; iCloud, Fastmail, Nextcloud and Baïkal accept this. Strict servers that require `VTIMEZONE` will reject those events — fall back to omitting `tz` (UTC mode) until a follow-up adds VTIMEZONE generation.
 
 ## Local development
 
@@ -259,7 +297,10 @@ users(id, clerk_user_id UNIQUE)
 mail_accounts(id, user_id, label, email,
               imap_{host,port,secure,user,password_enc},
               smtp_{host,port,secure,user,password_enc},
-              signature_html, is_default)
+              signature_html, writing_style, is_default)
+calendar_accounts(id, user_id, label,
+                  caldav_url, username, password_enc,
+                  default_calendar_url, color, is_default)
 oauth_clients(id, client_secret_hash, redirect_uris[], token_endpoint_auth_method)
 oauth_auth_codes(code, client_id, user_id, redirect_uri,
                  code_challenge, code_challenge_method, expires_at, consumed_at)
@@ -279,7 +320,9 @@ oauth_tokens(id, access_token_hash UNIQUE, refresh_token_hash,
 
 ## Out of scope (v1)
 
-- XOAUTH2 for Gmail / Outlook (password/app-password only for now)
+- XOAUTH2 for Gmail / Outlook IMAP (password/app-password only for now)
+- **OAuth 2.0 for Google Calendar (CalDAV)** — Google deprecated basic auth; v1 only supports CalDAV providers that accept app passwords (iCloud, Fastmail, Nextcloud, OVH, Baïkal, …)
+- Inline `VTIMEZONE` block generation — events are emitted with `TZID=<iana>` only; strict servers requiring `VTIMEZONE` are unsupported
 - IMAP IDLE / push notifications
 - Master-key rotation flow (schema supports it, tool not written yet)
 - Per-user rate limiting on MCP tools

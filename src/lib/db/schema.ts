@@ -101,9 +101,31 @@ export const oauthTokens = pgTable(
   ],
 );
 
+export const calendarAccounts = pgTable(
+  "calendar_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    caldavUrl: text("caldav_url").notNull(),
+    username: text("username").notNull(),
+    passwordEnc: text("password_enc").notNull(),
+    defaultCalendarUrl: text("default_calendar_url"),
+    color: text("color"),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("calendar_accounts_user_id_idx").on(t.userId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type MailAccount = typeof mailAccounts.$inferSelect;
 export type NewMailAccount = typeof mailAccounts.$inferInsert;
+export type CalendarAccount = typeof calendarAccounts.$inferSelect;
+export type NewCalendarAccount = typeof calendarAccounts.$inferInsert;
 export type OAuthClient = typeof oauthClients.$inferSelect;
 export type OAuthAuthCode = typeof oauthAuthCodes.$inferSelect;
 export type OAuthToken = typeof oauthTokens.$inferSelect;

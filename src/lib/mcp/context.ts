@@ -1,6 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { mailAccounts, type MailAccount } from "@/lib/db/schema";
+import {
+  mailAccounts,
+  calendarAccounts,
+  type MailAccount,
+  type CalendarAccount,
+} from "@/lib/db/schema";
 import {
   renderStyleInstructions,
   isEmptyStyle,
@@ -52,5 +57,43 @@ export async function loadAccount(
 export async function requireAccount(userId: string, accountId: string): Promise<MailAccount> {
   const acc = await loadAccount(userId, accountId);
   if (!acc) throw new Error(`Account ${accountId} not found for current user`);
+  return acc;
+}
+
+export async function listUserCalendarAccounts(userId: string) {
+  const rows = await db
+    .select({
+      id: calendarAccounts.id,
+      label: calendarAccounts.label,
+      caldavUrl: calendarAccounts.caldavUrl,
+      username: calendarAccounts.username,
+      defaultCalendarUrl: calendarAccounts.defaultCalendarUrl,
+      color: calendarAccounts.color,
+      isDefault: calendarAccounts.isDefault,
+    })
+    .from(calendarAccounts)
+    .where(eq(calendarAccounts.userId, userId))
+    .orderBy(calendarAccounts.createdAt);
+  return rows;
+}
+
+export async function loadCalendarAccount(
+  userId: string,
+  accountId: string,
+): Promise<CalendarAccount | null> {
+  const [row] = await db
+    .select()
+    .from(calendarAccounts)
+    .where(and(eq(calendarAccounts.id, accountId), eq(calendarAccounts.userId, userId)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function requireCalendarAccount(
+  userId: string,
+  accountId: string,
+): Promise<CalendarAccount> {
+  const acc = await loadCalendarAccount(userId, accountId);
+  if (!acc) throw new Error(`Calendar account ${accountId} not found for current user`);
   return acc;
 }
